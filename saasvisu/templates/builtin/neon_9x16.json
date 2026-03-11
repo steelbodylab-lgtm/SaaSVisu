@@ -1,0 +1,13 @@
+{
+  "id": "neon_9x16",
+  "name": "Neon 9:16",
+  "ratio": "9:16",
+  "background": { "type": "color", "value": "#0f0f1a" },
+  "text": {
+    "font_family": "Arial",
+    "font_size": 42,
+    "color": "#00ffcc",
+    "position": "center",
+    "margin_bottom_percent": 20
+  }
+}

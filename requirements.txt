@@ -1,0 +1,11 @@
+# Saas Visu — dépendances Python
+# Phase 1 : core minimal
+pydub>=0.25.1
+# Phase 2 : API web
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+# Rendu vidéo (optionnel, FFmpeg en CLI d'abord)
+# ffmpeg-python>=0.2.0
+# Phase 2 : Whisper (à ajouter quand on intègre la synchro IA)
+# openai-whisper>=20231117

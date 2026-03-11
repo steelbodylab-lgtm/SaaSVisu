@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saas Visu — Interface locale</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Saas Visu</h1>
+      <p class="subtitle">Visualizer local — photo/vidéo + audio + paroles</p>
+    </header>
+
+    <section class="card" id="section-project">
+      <h2>1. Projet</h2>
+      <div class="row">
+        <input type="text" id="project-name" placeholder="Nom du projet" value="Mon visualizer">
+        <button type="button" id="btn-create-project">Créer le projet</button>
+      </div>
+      <p id="project-status" class="status"></p>
+      <p id="project-id" class="id-display"></p>
+    </section>
+
+    <section class="card" id="section-audio">
+      <h2>2. Fichier audio</h2>
+      <div class="row">
+        <input type="file" id="input-audio" accept=".mp3,.wav,.m4a">
+        <button type="button" id="btn-upload-audio">Envoyer l’audio</button>
+      </div>
+      <p id="audio-status" class="status"></p>
+    </section>
+
+    <section class="card" id="section-background">
+      <h2>3. Fond (photo ou vidéo)</h2>
+      <div class="row">
+        <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv">
+        <button type="button" id="btn-upload-background">Envoyer le fond</button>
+      </div>
+      <p id="background-status" class="status"></p>
+    </section>
+
+    <section class="card" id="section-lyrics">
+      <h2>4. Paroles</h2>
+      <p class="hint">Une ligne = une phrase à l’écran.</p>
+      <textarea id="lyrics-text" rows="8" placeholder="Colle tes paroles ici..."></textarea>
+      <div class="row">
+        <button type="button" id="btn-save-lyrics">Enregistrer les paroles</button>
+      </div>
+      <p id="lyrics-status" class="status"></p>
+    </section>
+
+    <section class="card" id="section-sync">
+      <h2>5. Synchronisation</h2>
+      <p class="hint">Répartit les lignes sur la durée de l’audio.</p>
+      <button type="button" id="btn-sync">Lancer la synchro</button>
+      <p id="sync-status" class="status"></p>
+    </section>
+
+    <section class="card" id="section-render">
+      <h2>6. Rendu vidéo</h2>
+      <div class="row options">
+        <label>Template <select id="select-template">
+          <option value="minimal_16x9">Minimal 16:9</option>
+          <option value="neon_9x16">Neon 9:16</option>
+          <option value="square_clean_1x1">Carré 1:1</option>
+        </select></label>
+        <label>Ratio <select id="select-ratio">
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="1:1">1:1</option>
+        </select></label>
+        <label>Résolution <select id="select-resolution">
+          <option value="720p">720p</option>
+          <option value="1080p">1080p</option>
+        </select></label>
+      </div>
+      <button type="button" id="btn-render">Générer la vidéo</button>
+      <p id="render-status" class="status"></p>
+    </section>
+
+    <section class="card" id="section-result">
+      <h2>Résultat</h2>
+      <div id="video-container" class="video-container">
+        <video id="video-player" controls preload="metadata">
+          Votre navigateur ne supporte pas la lecture vidéo.
+        </video>
+        <p id="video-placeholder" class="placeholder">Générez une vidéo pour la voir ici.</p>
+      </div>
+      <div class="row">
+        <a id="link-download" href="#" download class="button secondary" style="display:none">Télécharger le MP4</a>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

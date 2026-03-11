@@ -1,0 +1,30 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+.eggs/
+*.egg-info/
+*.egg
+
+# Projets utilisateur (audio, exports, vidéos générées)
+projects/*
+!projects/.gitignore
+
+# Fichiers de rendu temporaires
+*_subs.ass
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.local
+*.local

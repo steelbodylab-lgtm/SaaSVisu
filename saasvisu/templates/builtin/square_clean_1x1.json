@@ -1,0 +1,13 @@
+{
+  "id": "square_clean_1x1",
+  "name": "Carré 1:1",
+  "ratio": "1:1",
+  "background": { "type": "color", "value": "#16213e" },
+  "text": {
+    "font_family": "Arial",
+    "font_size": 40,
+    "color": "#e94560",
+    "position": "center",
+    "margin_bottom_percent": 18
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "minimal_16x9",
+  "name": "Minimal 16:9",
+  "ratio": "16:9",
+  "background": { "type": "color", "value": "#1a1a2e" },
+  "text": {
+    "font_family": "Arial",
+    "font_size": 48,
+    "color": "#ffffff",
+    "position": "center",
+    "margin_bottom_percent": 15
+  }
+}
