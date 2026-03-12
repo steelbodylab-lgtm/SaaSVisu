@@ -71,7 +71,7 @@ Ou édite à la main `projects\a1b2c3d4\lyrics.txt` avec ton éditeur.
 Ça répartit les lignes de paroles sur la durée de l’audio (pour l’instant de façon uniforme) :
 
 ```powershell
-python -m saasvisu.cli sync --audio "projects\a1b2c3d4\audio\track.mp3" --lyrics "projects\a1b2c3d4\lyrics.txt" --out "projects\a1b2c3d4\sync.json"
+python -m saasvisu.cli sync --audio "projects\a1b2c3d4\audio\track.mp3" --lyrics "projects\a1b2c3d4\lyrics.txt" --out "projects\a1b2c3d4\sync.json" --whisper
 ```
 
 ### 6. Générer la vidéo (visualizer)

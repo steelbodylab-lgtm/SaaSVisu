@@ -24,11 +24,17 @@ def cmd_init_project(name: str) -> None:
     print(f"Projet créé: {project_path} (id={pid})")
 
 
-def cmd_sync(audio: str, lyrics: str, out: str) -> None:
-    """Synchronise les paroles avec l'audio (alignement uniforme)."""
+def cmd_sync(
+    audio: str,
+    lyrics: str,
+    out: str,
+    use_whisper: bool = False,
+    whisper_model: str = "base",
+) -> None:
+    """Synchronise les paroles avec l'audio (uniforme ou Whisper)."""
     from saasvisu.audio_ingest import get_metadata
     from saasvisu.lyrics import load_lyrics_json, lines_from_text
-    from saasvisu.sync_engine import align_lyrics_to_segments
+    from saasvisu.sync_engine import align_lyrics_to_segments, align_lyrics_with_whisper
     from saasvisu.sync_engine.aligner import save_sync_json
 
     audio_path = Path(audio)
@@ -44,9 +50,20 @@ def cmd_sync(audio: str, lyrics: str, out: str) -> None:
     else:
         text = lyrics_path.read_text(encoding="utf-8")
         lines = lines_from_text(text)
-    segments = align_lyrics_to_segments(lines, meta["duration_seconds"])
+
+    if use_whisper:
+        from saasvisu.sync_engine.whisper_adapter import transcribe_to_segments
+        print(f"Transcription Whisper (modèle {whisper_model})…")
+        whisper_segments = transcribe_to_segments(audio_path, model_name=whisper_model)
+        if not whisper_segments:
+            raise SystemExit("Whisper n'a retourné aucun segment. Vérifiez l'audio.")
+        segments = align_lyrics_with_whisper(lines, whisper_segments)
+        print(f"Sync Whisper enregistrée: {out_path} ({len(segments)} segments)")
+    else:
+        segments = align_lyrics_to_segments(lines, meta["duration_seconds"])
+        print(f"Sync uniforme enregistrée: {out_path} ({len(segments)} segments)")
+
     save_sync_json(out_path, segments)
-    print(f"Sync enregistrée: {out_path} ({len(segments)} segments)")
 
 
 def cmd_render(
@@ -109,7 +126,9 @@ def main() -> None:
     p_sync.add_argument("--audio", "-a", required=True, help="Fichier audio")
     p_sync.add_argument("--lyrics", "-l", required=True, help="Fichier paroles (.txt ou .json)")
     p_sync.add_argument("--out", "-o", required=True, help="Fichier sync.json de sortie")
-    p_sync.set_defaults(func=lambda a: cmd_sync(a.audio, a.lyrics, a.out))
+    p_sync.add_argument("--whisper", "-w", action="store_true", help="Utiliser Whisper pour aligner sur la voix")
+    p_sync.add_argument("--model", "-m", default="base", help="Modèle Whisper (tiny, base, small, medium, large)")
+    p_sync.set_defaults(func=lambda a: cmd_sync(a.audio, a.lyrics, a.out, a.whisper, a.model))
 
     p_render = sub.add_parser("render", help="Générer la vidéo")
     p_render.add_argument("--project", "-p", required=True, help="Dossier projet ou id")

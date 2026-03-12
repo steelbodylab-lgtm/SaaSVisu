@@ -3,97 +3,104 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Saas Visu — Interface locale</title>
+  <title>SaaSVisu — Lyric Video</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Saas Visu</h1>
-      <p class="subtitle">Visualizer local — photo/vidéo + audio + paroles</p>
+  <div class="app">
+    <header class="header">
+      <h1 class="logo">SaaSVisu</h1>
+      <p class="tagline">Crée ta lyric video en quelques clics</p>
+      <p id="project-badge" class="badge"></p>
     </header>
 
-    <section class="card" id="section-project">
-      <h2>1. Projet</h2>
-      <div class="row">
-        <input type="text" id="project-name" placeholder="Nom du projet" value="Mon visualizer">
-        <button type="button" id="btn-create-project">Créer le projet</button>
-      </div>
-      <p id="project-status" class="status"></p>
-      <p id="project-id" class="id-display"></p>
-    </section>
+    <main class="main">
+      <section class="step" data-step="1">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <h2>Fichiers</h2>
+        </div>
+        <div class="drop-row">
+          <div class="dropzone" id="dropzone-audio">
+            <input type="file" id="input-audio" accept=".mp3,.wav,.m4a" hidden>
+            <span class="dropzone-icon">🎵</span>
+            <span class="dropzone-title">Audio</span>
+            <span class="dropzone-sub">Dépose ton morceau</span>
+            <span class="dropzone-file" id="audio-filename"></span>
+          </div>
+          <div class="dropzone" id="dropzone-background">
+            <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" hidden>
+            <span class="dropzone-icon">🖼️</span>
+            <span class="dropzone-title">Fond</span>
+            <span class="dropzone-sub">Photo ou vidéo (optionnel)</span>
+            <span class="dropzone-file" id="background-filename"></span>
+          </div>
+        </div>
+        <p id="upload-status" class="feedback"></p>
+      </section>
 
-    <section class="card" id="section-audio">
-      <h2>2. Fichier audio</h2>
-      <div class="row">
-        <input type="file" id="input-audio" accept=".mp3,.wav,.m4a">
-        <button type="button" id="btn-upload-audio">Envoyer l’audio</button>
-      </div>
-      <p id="audio-status" class="status"></p>
-    </section>
+      <section class="step" data-step="2">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <h2>Paroles</h2>
+        </div>
+        <p class="step-hint">Colle les paroles pour un texte parfait, ou détecte-les automatiquement.</p>
+        <textarea id="lyrics-text" rows="6" placeholder="Colle tes paroles ici (une ligne = une phrase)…"></textarea>
+        <div class="action-group">
+          <div class="primary-actions">
+            <button type="button" id="btn-detect-lyrics" class="btn btn-primary">
+              <span class="btn-label">Détecter les paroles</span>
+              <span id="detect-engine-label" class="btn-sublabel">Chargement…</span>
+            </button>
+            <button type="button" id="btn-analyze" class="btn btn-secondary">Analyser mes paroles (déjà collées)</button>
+          </div>
+          <details class="options-details">
+            <summary>Options</summary>
+            <div class="options-inner">
+              <label>Moteur <select id="select-whisper-model">
+                <option value="base">Whisper Base</option>
+                <option value="small">Whisper Small</option>
+                <option value="medium">Whisper Medium</option>
+                <option value="large" selected>Whisper Large</option>
+              </select></label>
+              <span class="option-hint">Si Azure est configuré, il est utilisé en priorité (gratuit 5 h/mois).</span>
+            </div>
+          </details>
+        </div>
+        <p id="sync-status" class="feedback"></p>
+      </section>
 
-    <section class="card" id="section-background">
-      <h2>3. Fond (photo ou vidéo)</h2>
-      <div class="row">
-        <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv">
-        <button type="button" id="btn-upload-background">Envoyer le fond</button>
-      </div>
-      <p id="background-status" class="status"></p>
-    </section>
+      <section class="step" data-step="3">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <h2>Rendu</h2>
+        </div>
+        <div class="render-toolbar">
+          <div class="toolbar-row">
+            <label><span class="label-text">Format</span><select id="select-ratio"><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option></select></label>
+            <label><span class="label-text">Résolution</span><select id="select-resolution"><option value="720p">720p</option><option value="1080p">1080p</option></select></label>
+            <label><span class="label-text">Police</span><select id="select-font"></select></label>
+            <label><span class="label-text">Effet</span><select id="select-effect"></select></label>
+            <label class="color-label"><span class="label-text">Couleur</span><input type="color" id="input-text-color" value="#FFFFFF"></label>
+          </div>
+        </div>
+        <button type="button" id="btn-render" class="btn btn-primary btn-render">Lancer le rendu</button>
+        <p id="render-status" class="feedback"></p>
+      </section>
 
-    <section class="card" id="section-lyrics">
-      <h2>4. Paroles</h2>
-      <p class="hint">Une ligne = une phrase à l’écran.</p>
-      <textarea id="lyrics-text" rows="8" placeholder="Colle tes paroles ici..."></textarea>
-      <div class="row">
-        <button type="button" id="btn-save-lyrics">Enregistrer les paroles</button>
-      </div>
-      <p id="lyrics-status" class="status"></p>
-    </section>
-
-    <section class="card" id="section-sync">
-      <h2>5. Synchronisation</h2>
-      <p class="hint">Répartit les lignes sur la durée de l’audio.</p>
-      <button type="button" id="btn-sync">Lancer la synchro</button>
-      <p id="sync-status" class="status"></p>
-    </section>
-
-    <section class="card" id="section-render">
-      <h2>6. Rendu vidéo</h2>
-      <div class="row options">
-        <label>Template <select id="select-template">
-          <option value="minimal_16x9">Minimal 16:9</option>
-          <option value="neon_9x16">Neon 9:16</option>
-          <option value="square_clean_1x1">Carré 1:1</option>
-        </select></label>
-        <label>Ratio <select id="select-ratio">
-          <option value="16:9">16:9</option>
-          <option value="9:16">9:16</option>
-          <option value="1:1">1:1</option>
-        </select></label>
-        <label>Résolution <select id="select-resolution">
-          <option value="720p">720p</option>
-          <option value="1080p">1080p</option>
-        </select></label>
-      </div>
-      <button type="button" id="btn-render">Générer la vidéo</button>
-      <p id="render-status" class="status"></p>
-    </section>
-
-    <section class="card" id="section-result">
-      <h2>Résultat</h2>
-      <div id="video-container" class="video-container">
-        <video id="video-player" controls preload="metadata">
-          Votre navigateur ne supporte pas la lecture vidéo.
-        </video>
-        <p id="video-placeholder" class="placeholder">Générez une vidéo pour la voir ici.</p>
-      </div>
-      <div class="row">
-        <a id="link-download" href="#" download class="button secondary" style="display:none">Télécharger le MP4</a>
-      </div>
-    </section>
+      <section class="step step-result" data-step="4">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <h2>Résultat</h2>
+        </div>
+        <div id="video-container" class="video-wrap">
+          <video id="video-player" controls preload="metadata"></video>
+          <p id="video-placeholder" class="placeholder">Ta vidéo apparaîtra ici après le rendu.</p>
+        </div>
+        <a id="link-download" href="#" download class="btn btn-download" style="display:none">Télécharger le MP4</a>
+      </section>
+    </main>
   </div>
-
   <script src="/static/app.js"></script>
 </body>
 </html>

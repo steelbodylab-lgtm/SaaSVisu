@@ -36,7 +36,8 @@ En bref :
 2. Copier l’**audio** dans `projects\<id>\audio\track.mp3`.
 3. Copier la **photo ou vidéo** de fond dans `projects\<id>\background.jpg` (ou `.mp4`).
 4. Créer `projects\<id>\lyrics.txt` (une ligne = une phrase).
-5. `python -m saasvisu.cli sync --audio projects\<id>\audio\track.mp3 --lyrics projects\<id>\lyrics.txt --out projects\<id>\sync.json`
+5. `python -m saasvisu.cli sync --audio projects\<id>\audio\track.mp3 --lyrics projects\<id>\lyrics.txt --out projects\<id>\sync.json`  
+   Pour un alignement sur la voix (recommandé) : ajouter `--whisper` (et optionnellement `--model base` ou `small`).
 6. `python -m saasvisu.cli render --project projects\<id> --template minimal_16x9 --ratio 16:9 --resolution 720p`
 
 La vidéo est dans **`projects\<id>\output.mp4`**.
