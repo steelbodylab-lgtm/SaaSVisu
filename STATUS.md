@@ -21,6 +21,7 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 | **Fond photo ou vidéo** | OK : upload via API `POST /projects/{id}/background`, ou fichier `background.jpg` / `background.mp4` dans le projet ; le render l’utilise automatiquement |
 | API REST (créer projet, upload audio, **upload fond**, sync, render, download) | OK |
 | Templates (style des paroles) | OK (3 templates : 16:9, 9:16, 1:1) |
+| Documentation et workflow | OK : docs (voir [docs/README.md](docs/README.md)), [WORKFLOW_COLLABORATION.md](WORKFLOW_COLLABORATION.md), [AGENTS.md](AGENTS.md) pour les agents IA |
 
 ---
 

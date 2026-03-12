@@ -1,0 +1,29 @@
+---
+description: Contexte et règles du projet SaaSVisu (lyric videos) — français, pas SaaSMix
+alwaysApply: true
+---
+
+# Projet SaaSVisu
+
+## Contexte
+
+- **Projet** : SaaSVisu — générateur automatique de **lyric videos**.
+- **Séparation** : Ce projet est **totalement séparé** de SaaSMix. Ne jamais mélanger les deux projets, ni leurs règles, ni leur architecture.
+- **Langue** : Tout (code, commentaires, docs, messages de commit) doit être en **français**. Max ne parle pas anglais.
+
+## Objectif produit
+
+- L’utilisateur peut uploader : morceau audio, photo ou vidéo de fond, éventuellement les paroles à la main.
+- Le produit doit pouvoir analyser/générer les paroles et créer une lyric video dynamique pour les réseaux sociaux.
+
+## Où trouver l’état du projet
+
+- **État fonctionnel (fait / à faire)** : `STATUS.md` à la racine.
+- **Consignes agents et suivi des tâches** : `AGENTS.md` à la racine.
+- **Documentation** : `docs/README.md` (index) et fichiers listés dedans.
+
+## Conventions
+
+- Travailler **uniquement** dans le repo local SaaSVisu.
+- Ne rien reprendre depuis SaaSMix.
+- Avant de proposer des changements, s’appuyer sur le repo actuel et les derniers commits pour comprendre l’état ; ne pas dépendre de l’historique du chat.

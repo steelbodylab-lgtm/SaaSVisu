@@ -46,3 +46,10 @@ La vidéo est dans **`projects\<id>\output.mp4`**.
 - `saasvisu/` — cœur Python (audio, paroles, sync, templates, rendu, CLI)
 - `projects/` — tes projets locaux (audio, background, lyrics, sync.json, output.mp4)
 - L’API (`web_api`) existe mais n’est pas nécessaire en local ; tu peux l’ignorer.
+
+## Documentation
+
+- **État du projet (fait / à faire)** : [STATUS.md](STATUS.md)
+- **Collaboration Git** : [WORKFLOW_COLLABORATION.md](WORKFLOW_COLLABORATION.md)
+- **Index de toute la doc** : [docs/README.md](docs/README.md)
+- **Consignes pour les agents IA** : [AGENTS.md](AGENTS.md)
