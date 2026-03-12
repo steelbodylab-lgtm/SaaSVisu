@@ -4,13 +4,17 @@ Endpoints : projets, upload audio, paroles, sync, render, download.
 Interface locale servie en / (fichiers statiques).
 """
 from pathlib import Path
+
+# Racine du projet (pour charger .env)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(_PROJECT_ROOT / ".env")
+    load_dotenv(Path.cwd() / ".env")  # aussi depuis le dossier de lancement
 except ImportError:
     pass
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 import uuid
 import shutil
@@ -18,7 +22,7 @@ import shutil
 app = FastAPI(title="Saas Visu API", version="0.1.0")
 
 # Racine du projet et dossiers
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = _PROJECT_ROOT
 PROJECTS_DIR = PROJECT_ROOT / "projects"
 STATIC_DIR = PROJECT_ROOT / "static"
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -30,6 +34,16 @@ class ProjectCreate(BaseModel):
 
 class LyricsBody(BaseModel):
     text: str
+
+
+class AnalyzeBody(BaseModel):
+    """Optionnel : texte (paroles ou mots-clés) pour améliorer la reconnaissance Azure."""
+    phrase_hints: str | None = None
+
+
+class SyncSegmentsBody(BaseModel):
+    """Segments (mots avec timestamps) pour écraser sync.json (ex. après édition des boxes)."""
+    segments: list[dict]
 
 
 @app.get("/")
@@ -53,10 +67,48 @@ def _azure_speech_available() -> bool:
     return bool(os.environ.get("AZURE_SPEECH_KEY") and os.environ.get("AZURE_SPEECH_REGION"))
 
 
+def _ensure_env_loaded():
+    """Recharge .env depuis la racine du projet (au cas où le chargement initial ait raté)."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(PROJECT_ROOT / ".env", override=True)
+    except Exception:
+        pass
+
+
 @app.get("/config/speech")
-def get_speech_config():
-    """Indique si Azure Speech est configuré (clé + région dans les variables d'environnement)."""
-    return {"azure_available": _azure_speech_available()}
+def get_speech_config(debug: bool = False):
+    """Indique quels moteurs STT sont disponibles (Azure, HeartMuLa, Whisper).
+    ?debug=1 renvoie une page HTML lisible au lieu du JSON."""
+    import os
+    _ensure_env_loaded()
+    if debug:
+        raw = os.environ.get("HEARTMULA_USE_LOCAL", "<non défini>")
+        h_av = _heartmula_available()
+        h_local = _heartmula_use_local()
+        root = str(PROJECT_ROOT)
+        env_exists = (PROJECT_ROOT / ".env").exists()
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Config debug</title></head>
+<body style="font-family: sans-serif; max-width: 600px; margin: 2rem; line-height: 1.6;">
+<h1>Config debug (HeartMuLa)</h1>
+<ul>
+<li><b>HEARTMULA_USE_LOCAL</b> = {raw}</li>
+<li><b>heartmula_available</b> = {h_av}</li>
+<li><b>heartmula_use_local</b> = {h_local}</li>
+<li><b>project_root</b> = {root}</li>
+<li><b>env_file_exists</b> = {env_exists}</li>
+</ul>
+<p>Si heartmula_available est False, vérifiez que le fichier .env à la racine contient <code>HEARTMULA_USE_LOCAL=1</code> et redémarrez le serveur.</p>
+<p><a href="/">Retour à l'app</a></p>
+</body></html>"""
+        return Response(content=html, media_type="text/html")
+    out = {
+        "azure_available": _azure_speech_available(),
+        "heartmula_available": _heartmula_available(),
+        "heartmula_local": _heartmula_available() and _heartmula_use_local(),
+    }
+    return out
 
 
 @app.post("/projects")
@@ -135,8 +187,11 @@ def save_lyrics(project_id: str, body: LyricsBody):
 
 
 @app.post("/projects/{project_id}/sync")
-def run_sync(project_id: str, use_whisper: bool = False, whisper_model: str = "base"):
-    """Lance la synchro. use_whisper=true : alignement sur la voix (Whisper)."""
+def run_sync(project_id: str, use_whisper: bool = False, whisper_model: str = "base", body: SyncSegmentsBody | None = None):
+    """
+    Lance la synchro. Si body.segments est fourni, enregistre ces segments dans sync.json (après édition des boxes).
+    Sinon : use_whisper=true = alignement sur la voix (Whisper), sinon répartition uniforme.
+    """
     from saasvisu.audio_ingest import get_metadata
     from saasvisu.lyrics import load_lyrics_json
     from saasvisu.sync_engine import align_lyrics_to_segments, align_lyrics_with_whisper
@@ -144,6 +199,11 @@ def run_sync(project_id: str, use_whisper: bool = False, whisper_model: str = "b
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
         raise HTTPException(status_code=404, detail="Projet introuvable")
+    sync_path = project_path / "sync.json"
+    if body and body.segments:
+        segments = body.segments
+        save_sync_json(sync_path, segments)
+        return {"ok": True, "segments_count": len(segments)}
     audio_dir = project_path / "audio"
     audio_file = next(audio_dir.glob("*"), None)
     if not audio_file:
@@ -164,18 +224,38 @@ def run_sync(project_id: str, use_whisper: bool = False, whisper_model: str = "b
     else:
         meta = get_metadata(audio_file)
         segments = align_lyrics_to_segments(lines, meta["duration_seconds"])
-    sync_path = project_path / "sync.json"
     save_sync_json(sync_path, segments)
     return {"ok": True, "segments_count": len(segments), "whisper": use_whisper}
 
 
+def _heartmula_available() -> bool:
+    """True si WaveSpeed API key OU HEARTMULA_USE_LOCAL=1 (option affichée même sans torch/transformers)."""
+    import os
+    if os.environ.get("WAVESPEED_API_KEY", "").strip():
+        return True
+    if os.environ.get("HEARTMULA_USE_LOCAL", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    return False
+
+
+def _heartmula_use_local() -> bool:
+    import os
+    return os.environ.get("HEARTMULA_USE_LOCAL", "").strip().lower() in ("1", "true", "yes")
+
+
+
+
 @app.post("/projects/{project_id}/analyze")
-def run_analyze(project_id: str, whisper_model: str = "base", engine: str = ""):
+def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", body: AnalyzeBody | None = None):
     """
-    Détection automatique des paroles. Si Azure est configuré (AZURE_SPEECH_KEY + REGION)
-    et engine n'est pas "whisper", utilise Azure (plan gratuit 5 h/mois). Sinon Whisper.
+    Détection automatique des paroles.
+    engine=heartmula → WaveSpeed HeartMuLa (WAVESPEED_API_KEY requis).
+    engine=azure → Azure Speech (si configuré).
+    Sinon Whisper.
+    body.phrase_hints : pour Azure.
     """
     from saasvisu.sync_engine.aligner import save_sync_json
+    from saasvisu.audio_ingest import get_duration_seconds
     import os
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
@@ -184,17 +264,62 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = ""):
     audio_file = next(audio_dir.glob("*"), None)
     if not audio_file:
         raise HTTPException(status_code=400, detail="Aucun fichier audio dans le projet")
-    use_azure = (engine != "whisper") and _azure_speech_available()
+    use_heartmula = (engine == "heartmula") and _heartmula_available()
+    use_heartmula_local = use_heartmula and _heartmula_use_local()
+    use_azure = (engine not in ("whisper", "heartmula")) and _azure_speech_available()
+    phrase_hints = (body and body.phrase_hints) or None
     segments = []
     try:
-        if use_azure:
+        if use_heartmula:
+            from saasvisu.sync_engine.heartmula_adapter import (
+                transcribe_lyrics,
+                transcribe_lyrics_local,
+                lyrics_text_to_word_segments,
+                _local_available,
+            )
+            if use_heartmula_local:
+                if not _local_available():
+                    raise HTTPException(
+                        status_code=503,
+                        detail="HeartMuLa (local) nécessite torch et transformers. Exécutez : pip install -r requirements-heartmula-local.txt",
+                    )
+                import threading
+                result = []
+                exc_holder = []
+
+                def run_local():
+                    try:
+                        result.append(transcribe_lyrics_local(audio_file))
+                    except Exception as e:
+                        exc_holder.append(e)
+
+                th = threading.Thread(target=run_local)
+                th.daemon = True
+                th.start()
+                th.join(timeout=300)  # 5 min max (premier run = téléchargement modèle ~1 Go)
+                if th.is_alive():
+                    raise HTTPException(
+                        status_code=504,
+                        detail="Détection HeartMuLa (local) trop longue (timeout 5 min). Premier lancement ? Le modèle se télécharge (~1 Go) — réessaie dans quelques minutes. Sinon, utilise un extrait audio plus court ou Whisper.",
+                    )
+                if exc_holder:
+                    raise exc_holder[0]
+                lyrics_text = result[0]
+            else:
+                api_key = os.environ["WAVESPEED_API_KEY"].strip()
+                lyrics_text = transcribe_lyrics(audio_file, api_key)
+            duration_sec = get_duration_seconds(audio_file)
+            segments = lyrics_text_to_word_segments(lyrics_text, duration_sec)
+        elif use_azure:
             from saasvisu.sync_engine.azure_speech_adapter import transcribe_to_words as azure_transcribe
             key = os.environ["AZURE_SPEECH_KEY"]
             region = os.environ["AZURE_SPEECH_REGION"]
-            segments = azure_transcribe(audio_file, subscription_key=key, region=region, language="fr-FR")
+            segments = azure_transcribe(
+                audio_file, subscription_key=key, region=region, language="fr-FR", phrase_hints=phrase_hints
+            )
         else:
             from saasvisu.sync_engine.whisper_adapter import transcribe_to_words
-            segments = transcribe_to_words(audio_file, model_name=whisper_model)
+            segments = transcribe_to_words(audio_file, model_name=whisper_model, language="fr")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analyse a échoué : {e}")
     if not segments:
@@ -211,7 +336,9 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = ""):
         "ok": True,
         "words_count": len(segments),
         "message": "Paroles détectées automatiquement (mot par mot).",
-        "engine": "azure" if use_azure else "whisper",
+        "engine": "heartmula" if use_heartmula else ("azure" if use_azure else "whisper"),
+        "text": full_text,
+        "segments": [{"text": s.get("text", ""), "start_time_ms": s.get("start_time_ms", 0), "end_time_ms": s.get("end_time_ms", 0)} for s in segments],
     }
 
 
@@ -251,9 +378,9 @@ def run_render(
             audio_file, sync_path, out_path,
             template_name=template, ratio=ratio, resolution=resolution,
             background_path=background_path,
-            font_name=font or None,
+            font_name=(font and font.strip()) or "Arial",
             font_size=font_size or None,
-            text_effect=effect or None,
+            text_effect=(effect and effect.strip()) or "classique",
             text_color=text_color or None,
         )
     except FileNotFoundError as e:
@@ -275,18 +402,97 @@ def download_video(project_id: str):
     return FileResponse(out_path, filename="saasvisu_output.mp4")
 
 
+def _parse_range(range_header: str | None, file_size: int) -> tuple[int, int] | None:
+    """Parse Range header. Returns (start, end) inclusive or None for full file."""
+    if not range_header or not range_header.strip().startswith("bytes="):
+        return None
+    try:
+        parts = range_header.strip()[6:].split("-")
+        start = int(parts[0]) if parts[0] else 0
+        end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+        end = min(end, file_size - 1)
+        if start > end or start < 0:
+            return None
+        return (start, end)
+    except (ValueError, IndexError):
+        return None
+
+
 @app.get("/projects/{project_id}/video")
-def stream_video(project_id: str):
-    """Stream la vidéo pour lecture dans le navigateur (<video src='...'>)."""
+def stream_video(project_id: str, request: Request):
+    """Stream la vidéo avec support Range pour lecture complète et seek."""
     project_path = PROJECTS_DIR / project_id
     out_path = project_path / "output.mp4"
     if not out_path.exists():
         raise HTTPException(status_code=404, detail="Vidéo non générée")
-    return FileResponse(
-        out_path,
+    file_size = out_path.stat().st_size
+    range_spec = _parse_range(request.headers.get("range"), file_size)
+    if range_spec is None:
+        return FileResponse(
+            out_path,
+            media_type="video/mp4",
+            headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
+        )
+    start, end = range_spec
+    length = end - start + 1
+    with open(out_path, "rb") as f:
+        f.seek(start)
+        body = f.read(length)
+    return Response(
+        content=body,
+        status_code=206,
         media_type="video/mp4",
-        headers={"Accept-Ranges": "bytes"},
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(length),
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+        },
     )
+
+
+_AUDIO_MIME = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4"}
+
+
+@app.get("/projects/{project_id}/audio")
+def stream_audio(project_id: str):
+    """Stream l'audio du projet pour prévisualisation (sans re-rendu)."""
+    project_path = PROJECTS_DIR / project_id
+    audio_dir = project_path / "audio"
+    audio_file = next(audio_dir.glob("*"), None)
+    if not audio_file or not audio_file.is_file():
+        raise HTTPException(status_code=404, detail="Aucun fichier audio")
+    mime = _AUDIO_MIME.get(audio_file.suffix.lower(), "audio/mpeg")
+    return FileResponse(audio_file, media_type=mime)
+
+
+@app.get("/projects/{project_id}/project-info")
+def get_project_info(project_id: str):
+    """Infos projet pour l'aperçu (fond image ou vidéo)."""
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    has_audio = bool(next((project_path / "audio").glob("*"), None))
+    background_type = None
+    for ext in BACKGROUND_EXT:
+        if (project_path / f"background{ext}").exists():
+            background_type = "video" if ext in BACKGROUND_VIDEO_EXT else "image"
+            break
+    return {"has_audio": has_audio, "background_type": background_type}
+
+
+@app.get("/projects/{project_id}/background")
+def stream_background(project_id: str):
+    """Stream le fond (image ou vidéo) pour l'aperçu en direct."""
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    _BG_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".bmp": "image/bmp", ".webp": "image/webp",
+                 ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska"}
+    for ext in BACKGROUND_EXT:
+        candidate = project_path / f"background{ext}"
+        if candidate.exists():
+            return FileResponse(candidate, media_type=_BG_MIME.get(ext, "application/octet-stream"))
+    raise HTTPException(status_code=404, detail="Aucun fond")
 
 
 if STATIC_DIR.exists():
@@ -296,4 +502,5 @@ if STATIC_DIR.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # reload=True : redémarre tout seul quand tu modifies un fichier .py (pas besoin de couper/relancer)
+    uvicorn.run("saasvisu.web_api.main:app", host="0.0.0.0", port=8000, reload=True)

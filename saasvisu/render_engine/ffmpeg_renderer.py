@@ -82,28 +82,111 @@ def _effect_to_ass_style(
 
 def _normalize_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
-    Trie les segments par start_time_ms et supprime les chevauchements :
-    à chaque instant un seul mot est affiché, dans l'ordre chronologique.
+    Trie les segments par start_time_ms et assure une durée valide.
+    On garde les timestamps Azure tels quels : le mot s'affiche quand il est dit dans la chanson.
     """
     if not segments:
         return []
     sorted_seg = sorted(segments, key=lambda x: (x.get("start_time_ms", 0), x.get("end_time_ms", 0)))
     out = []
-    for i, seg in enumerate(sorted_seg):
+    for seg in sorted_seg:
         start = seg.get("start_time_ms", 0)
         end = seg.get("end_time_ms", 0)
         text = (seg.get("text") or "").strip()
         if not text:
             continue
-        # Pas de chevauchement : ce mot se termine quand le suivant commence
-        if out and start < out[-1]["end_time_ms"]:
-            start = out[-1]["end_time_ms"]
         if end <= start:
             end = start + 200  # durée min 200 ms
-        if out and start < out[-1]["end_time_ms"]:
-            out[-1]["end_time_ms"] = start
         out.append({"start_time_ms": start, "end_time_ms": end, "text": text})
     return out
+
+
+# Pause (ms) entre deux mots au-delà de laquelle on considère une nouvelle phrase
+PHRASE_PAUSE_MS = 550
+
+
+def _group_words_into_phrases(
+    segments: list[dict[str, Any]], pause_ms: int = PHRASE_PAUSE_MS
+) -> list[list[dict[str, Any]]]:
+    """
+    Regroupe les mots en phrases : un silence (écart entre deux mots) > pause_ms = nouvelle phrase.
+    Retourne une liste de phrases, chaque phrase = liste de segments (mots).
+    """
+    normalized = _normalize_segments(segments)
+    if not normalized:
+        return []
+    phrases: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = [normalized[0]]
+    for i in range(1, len(normalized)):
+        prev_end = normalized[i - 1].get("end_time_ms", 0)
+        curr_start = normalized[i].get("start_time_ms", 0)
+        if curr_start - prev_end >= pause_ms:
+            phrases.append(current)
+            current = [normalized[i]]
+        else:
+            current.append(normalized[i])
+    if current:
+        phrases.append(current)
+    return phrases
+
+
+def _segments_to_ass_phrase_accumulation(
+    segments: list[dict[str, Any]],
+    width: int,
+    height: int,
+    font_name: str = "Arial",
+    font_size: int = 48,
+    primary_color: str = "#FFFFFF",
+    outline_color: str = "#000000",
+    effect: dict[str, int] | None = None,
+) -> str:
+    """
+    Génère l'ASS en mode "phrase qui se construit" : les mots s'ajoutent un par un
+    jusqu'à afficher la phrase complète, puis on passe à la phrase suivante (dans les temps).
+    """
+    phrases = _group_words_into_phrases(segments)
+    eff = effect or EFFECTS["classique"]
+    outline = eff.get("outline", 2)
+    shadow = eff.get("shadow", 1)
+    bold = eff.get("bold", 0)
+    italic = eff.get("italic", 0)
+    margin_v = max(40, min(height // 8, 120))
+    style_line = _effect_to_ass_style(
+        font_name, font_size,
+        primary_hex=primary_color.lstrip("#"),
+        outline_hex=outline_color.lstrip("#"),
+        outline=outline, shadow=shadow, bold=bold, italic=italic, margin_v=margin_v,
+    )
+    header = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {width}",
+        f"PlayResY: {height}",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        style_line,
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    lines = list(header)
+    for phrase in phrases:
+        if not phrase:
+            continue
+        for i, word in enumerate(phrase):
+            start_ms = word.get("start_time_ms", 0)
+            if i + 1 < len(phrase):
+                end_ms = phrase[i + 1].get("start_time_ms", start_ms + 500)
+            else:
+                end_ms = word.get("end_time_ms", start_ms + 300)
+            text = " ".join((w.get("text") or "").strip() for w in phrase[: i + 1]).strip()
+            if not text:
+                continue
+            start_s = _ms_to_ass_time(start_ms)
+            end_s = _ms_to_ass_time(end_ms)
+            lines.append(f"Dialogue: 0,{start_s},{end_s},Default,,0,0,0,,{text}")
+    return "\n".join(lines)
 
 
 def _segments_to_ass(
@@ -116,7 +199,7 @@ def _segments_to_ass(
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
 ) -> str:
-    """Génère le contenu ASS : un mot à la fois, centré, ordre chronologique, sans chevauchement."""
+    """Génère le contenu ASS : un mot à la fois, centré, aux timestamps de la reconnaissance (mot affiché quand il est dit)."""
     normalized = _normalize_segments(segments)
     eff = effect or EFFECTS["classique"]
     outline = eff.get("outline", 2)
@@ -157,11 +240,12 @@ def _segments_to_ass(
 
 
 def _ms_to_ass_time(ms: int) -> str:
-    """Convertit des millisecondes en format ASS (H:MM:SS.cc)."""
-    s, c = divmod(ms, 1000)
-    m, s = divmod(s, 60)
+    """Convertit des millisecondes en format ASS (H:MM:SS.cc = centièmes de seconde, pas ms)."""
+    total_sec = ms // 1000
+    centisec = (ms % 1000) // 10  # 0-99 pour ASS
+    m, s = divmod(total_sec, 60)
     h, m = divmod(m, 60)
-    return f"{h}:{m:02d}:{s:02d}.{c:02d}"
+    return f"{h}:{m:02d}:{s:02d}.{centisec:02d}"
 
 
 def _get_audio_duration_seconds(audio_path: Path) -> float:
@@ -218,7 +302,7 @@ def render_lyric_video(
     default_color = bg.get("value", "#1a1a2e").lstrip("#")
     r, g, b = int(default_color[0:2], 16), int(default_color[2:4], 16), int(default_color[4:6], 16)
     text_cfg = t.get("text", {})
-    font = font_name or text_cfg.get("font_family", "Arial")
+    font = (font_name or text_cfg.get("font_family") or "Arial").strip() or "Arial"
     size = font_size or text_cfg.get("font_size", 48)
     primary_color = (text_color or text_cfg.get("color") or "#FFFFFF").strip()
     if not primary_color.startswith("#"):
@@ -229,6 +313,7 @@ def render_lyric_video(
     effect_key = (text_effect or "classique").strip() or "classique"
     effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
 
+    # Affichage MOT PAR MOT : un mot à la fois, aux timestamps exacts (synchro avec la chanson).
     ass_content = _segments_to_ass(
         segments, w, h,
         font_name=font, font_size=size,

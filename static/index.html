@@ -22,17 +22,17 @@
         </div>
         <div class="drop-row">
           <div class="dropzone" id="dropzone-audio">
-            <input type="file" id="input-audio" accept=".mp3,.wav,.m4a" hidden>
+            <input type="file" id="input-audio" accept=".mp3,.wav,.m4a" class="dropzone-input">
             <span class="dropzone-icon">🎵</span>
             <span class="dropzone-title">Audio</span>
-            <span class="dropzone-sub">Dépose ton morceau</span>
+            <span class="dropzone-sub">Clique ou dépose</span>
             <span class="dropzone-file" id="audio-filename"></span>
           </div>
           <div class="dropzone" id="dropzone-background">
-            <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" hidden>
+            <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" class="dropzone-input">
             <span class="dropzone-icon">🖼️</span>
             <span class="dropzone-title">Fond</span>
-            <span class="dropzone-sub">Photo ou vidéo (optionnel)</span>
+            <span class="dropzone-sub">Clique ou dépose (optionnel)</span>
             <span class="dropzone-file" id="background-filename"></span>
           </div>
         </div>
@@ -43,31 +43,40 @@
         <div class="step-header">
           <span class="step-num">2</span>
           <h2>Paroles</h2>
+          <span id="engine-badge" class="engine-badge" aria-hidden="true"></span>
         </div>
-        <p class="step-hint">Colle les paroles pour un texte parfait, ou détecte-les automatiquement.</p>
-        <textarea id="lyrics-text" rows="6" placeholder="Colle tes paroles ici (une ligne = une phrase)…"></textarea>
+        <p class="step-hint">Détecte les paroles avec le moteur choisi. HeartMuLa (local) = précis mais lent ; pour aller plus vite, utilise Whisper (Base).</p>
         <div class="action-group">
-          <div class="primary-actions">
-            <button type="button" id="btn-detect-lyrics" class="btn btn-primary">
-              <span class="btn-label">Détecter les paroles</span>
-              <span id="detect-engine-label" class="btn-sublabel">Chargement…</span>
-            </button>
-            <button type="button" id="btn-analyze" class="btn btn-secondary">Analyser mes paroles (déjà collées)</button>
-          </div>
-          <details class="options-details">
-            <summary>Options</summary>
-            <div class="options-inner">
-              <label>Moteur <select id="select-whisper-model">
-                <option value="base">Whisper Base</option>
-                <option value="small">Whisper Small</option>
-                <option value="medium">Whisper Medium</option>
-                <option value="large" selected>Whisper Large</option>
-              </select></label>
-              <span class="option-hint">Si Azure est configuré, il est utilisé en priorité (gratuit 5 h/mois).</span>
-            </div>
-          </details>
+          <label id="engine-select-wrap" class="engine-select-wrap hidden">
+            <span class="label-text">Moteur</span>
+            <select id="select-engine">
+              <option value="heartmula">HeartMuLa (WaveSpeed)</option>
+              <option value="azure">Azure Speech</option>
+              <option value="whisper">Whisper</option>
+            </select>
+          </label>
+          <button type="button" id="btn-detect-lyrics" class="btn btn-primary">
+            <span class="btn-label">Détecter les paroles</span>
+          </button>
         </div>
         <p id="sync-status" class="feedback"></p>
+        <div class="lyrics-card">
+          <div id="lyrics-words" class="lyrics-words hidden">
+            <p class="lyrics-words-placeholder">Détecte les paroles. Tu peux modifier le texte dans chaque mot.</p>
+          </div>
+        </div>
+        <details id="whisper-options" class="options-details hidden">
+          <summary>Options Whisper (si moteur Whisper)</summary>
+          <div class="options-inner">
+            <label>Modèle (plus gros = plus précis, plus lent) <select id="select-whisper-model">
+              <option value="base">Base (rapide)</option>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+              <option value="large-v3" selected>Large v3 (meilleure précision)</option>
+            </select></label>
+          </div>
+        </details>
       </section>
 
       <section class="step" data-step="3">
@@ -75,29 +84,33 @@
           <span class="step-num">3</span>
           <h2>Rendu</h2>
         </div>
+        <p class="step-hint">Aperçu en direct : fond + paroles synchronisées. Modifie police, taille, couleur, position — tout se met à jour sans re-rendu. Quand c’est bon, clique sur Exporter.</p>
         <div class="render-toolbar">
           <div class="toolbar-row">
             <label><span class="label-text">Format</span><select id="select-ratio"><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option></select></label>
             <label><span class="label-text">Résolution</span><select id="select-resolution"><option value="720p">720p</option><option value="1080p">1080p</option></select></label>
             <label><span class="label-text">Police</span><select id="select-font"></select></label>
             <label><span class="label-text">Effet</span><select id="select-effect"></select></label>
+            <label><span class="label-text">Taille</span><input type="number" id="input-font-size" min="12" max="120" value="48" style="width:4rem"></label>
             <label class="color-label"><span class="label-text">Couleur</span><input type="color" id="input-text-color" value="#FFFFFF"></label>
+            <label><span class="label-text">Position</span><select id="select-position"><option value="bottom">Bas</option><option value="center">Centre</option><option value="top">Haut</option></select></label>
           </div>
         </div>
-        <button type="button" id="btn-render" class="btn btn-primary btn-render">Lancer le rendu</button>
-        <p id="render-status" class="feedback"></p>
-      </section>
-
-      <section class="step step-result" data-step="4">
-        <div class="step-header">
-          <span class="step-num">4</span>
-          <h2>Résultat</h2>
+        <div id="preview-area" class="preview-area hidden">
+          <div class="preview-stage" id="preview-stage">
+            <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
+            <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
+            <div id="preview-overlay" class="preview-overlay"></div>
+          </div>
+          <audio id="preview-audio" controls class="preview-audio"></audio>
+          <div class="preview-actions">
+            <button type="button" id="btn-export" class="btn btn-primary">Exporter la vidéo</button>
+            <p id="render-status" class="feedback"></p>
+          </div>
         </div>
-        <div id="video-container" class="video-wrap">
-          <video id="video-player" controls preload="metadata"></video>
-          <p id="video-placeholder" class="placeholder">Ta vidéo apparaîtra ici après le rendu.</p>
+        <div id="post-export" class="post-export hidden">
+          <a id="link-download" href="#" download class="btn btn-download">Télécharger le MP4</a>
         </div>
-        <a id="link-download" href="#" download class="btn btn-download" style="display:none">Télécharger le MP4</a>
       </section>
     </main>
   </div>

@@ -1,0 +1,5 @@
+# Optionnel : HeartMuLa en local (gratuit, pour dev).
+# Active avec HEARTMULA_USE_LOCAL=1 dans .env.
+# pip install -r requirements-heartmula-local.txt
+torch>=2.0.0
+transformers>=4.36.0

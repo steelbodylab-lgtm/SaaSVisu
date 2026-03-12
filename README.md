@@ -18,15 +18,27 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
+## Lancer / redémarrer le serveur
+
+Dans le dossier du projet :
+
+```powershell
+.\run.ps1
+```
+
+Ou à la main : `python -m saasvisu.web_api.main`
+
+**Pour redémarrer** : dans le terminal où le serveur tourne, **Ctrl+C**, puis relancer `.\run.ps1`.
+
+Ouvre **http://localhost:8000** dans le navigateur.
+
+---
+
 ## Utilisation en local (CLI)
 
 Guide pas à pas en CLI : **USAGE_LOCAL.md**
 
-**Interface locale (recommandé pour tester)** : lance l’API puis ouvre le navigateur :
-
-```powershell
-python -m saasvisu.web_api.main
-```
+**Interface locale (recommandé pour tester)** : lance l’API puis ouvre le navigateur (voir ci‑dessus).
 
 Ouvre **http://localhost:8000** : une page avec boutons pour chaque étape (créer projet, upload audio, upload fond, paroles, synchro, rendu) et un lecteur vidéo pour le résultat.
 
@@ -41,6 +53,12 @@ En bref :
 6. `python -m saasvisu.cli render --project projects\<id> --template minimal_16x9 --ratio 16:9 --resolution 720p`
 
 La vidéo est dans **`projects\<id>\output.mp4`**.
+
+## HeartMuLa (paroles) : dev gratuit vs prod
+
+- **En dev** (gratuit) : dans `.env` mets `HEARTMULA_USE_LOCAL=1`, puis  
+  `pip install -r requirements-heartmula-local.txt`. Le moteur « HeartMuLa (local, gratuit) » apparaît ; la première détection télécharge le modèle (~1 Go).
+- **En prod** : dans `.env` mets `WAVESPEED_API_KEY=ta_cle` (sans `HEARTMULA_USE_LOCAL`). L’app utilisera l’API WaveSpeed (~0,05 $ / transcription).
 
 ## Structure
 

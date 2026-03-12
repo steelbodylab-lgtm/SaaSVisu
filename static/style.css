@@ -23,9 +23,35 @@ body {
   color: var(--text);
   line-height: 1.5;
   min-height: 100vh;
+  position: relative;
+}
+body::before {
+  content:
+    "gay ❤️ gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ "
+    "gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 "
+    "gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 "
+    "gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 "
+    "gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 "
+    "gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 gay ❤️ gay 💖 gay 💗 gay ❤️ gay 💖 gay ❤️ gay 💗 gay 💖 gay ❤️ gay 💗 ";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 2.2;
+  letter-spacing: 0.15em;
+  word-spacing: 0.3em;
+  color: #ff2d6a;
+  background: linear-gradient(135deg, rgba(255,20,80,0.06), rgba(255,105,180,0.06));
+  opacity: 0.12;
+  overflow: hidden;
+  word-break: break-all;
 }
 
 .app {
+  position: relative;
+  z-index: 1;
   max-width: 620px;
   margin: 0 auto;
   padding: 2rem 1.25rem;
@@ -91,6 +117,20 @@ body {
   font-weight: 600;
   color: #fff;
 }
+.engine-badge {
+  margin-left: auto;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+.engine-badge.whisper {
+  background: rgba(113, 113, 122, 0.2);
+  color: var(--text-muted);
+}
+.hidden { display: none !important; }
 .step-hint {
   color: var(--text-muted);
   font-size: 0.875rem;
@@ -127,11 +167,224 @@ body {
   border-color: var(--success);
   background: rgba(34, 197, 94, 0.05);
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Input file caché mais cliquable via le label (label enveloppe l’input) */
+.dropzone-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.dropzone-icon, .dropzone-title, .dropzone-sub, .dropzone-file { pointer-events: none; }
+.dropzone { position: relative; cursor: pointer; }
 .dropzone-icon { font-size: 1.75rem; }
 .dropzone-title { font-weight: 600; color: #fff; }
 .dropzone-sub { font-size: 0.8rem; color: var(--text-muted); }
 .dropzone-file { font-size: 0.8rem; color: var(--success); word-break: break-all; }
 
+/* Paroles : card organisée, 3–4 mots par ligne */
+.lyrics-words {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.lyrics-words:not(.hidden) { display: block; }
+.lyrics-phrase-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.4rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  border-left: 4px solid var(--primary);
+  line-height: 1.5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.lyrics-phrase-line:last-child { margin-bottom: 0; }
+.lyrics-phrase-line .phrase-line-num {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 4px;
+}
+.lyrics-phrase-line .add-word-btn { margin-left: 0.15rem; }
+.lyrics-phrase-line .word-box { min-width: 2em; }
+.word-box-wrap {
+  display: inline;
+  vertical-align: middle;
+}
+.word-box-wrap + .word-box-wrap .word-box { margin-left: 0.2rem; }
+.word-box-wrap .word-box { margin-right: 0.2rem; }
+.word-box {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: text;
+  outline: none;
+  min-width: 0.5em;
+}
+.word-box:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+.word-box-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.word-box-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+.word-box-delete:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+}
+.add-word-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 0.2rem;
+}
+.add-word-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.lyrics-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  max-width: 42rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.lyrics-card .lyrics-words-placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.preview-area {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.preview-stage {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  background: #1a1a2e;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.preview-stage[data-ratio="9:16"] { aspect-ratio: 9 / 16; max-width: 405px; }
+.preview-stage[data-ratio="1:1"] { aspect-ratio: 1; max-width: 540px; }
+.preview-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.preview-bg.active { display: block; }
+.preview-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  transition: opacity 0.08s;
+  pointer-events: none;
+}
+.preview-overlay.preview-pos-bottom { bottom: 0; }
+.preview-overlay.preview-pos-center { top: 50%; transform: translateY(-50%); }
+.preview-overlay.preview-pos-top { top: 0; }
+.preview-audio {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+.preview-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.post-export {
+  margin-top: 1rem;
+}
+.post-export.hidden { display: none; }
+.post-export:not(.hidden) { display: block; }
+.lyrics-words .lyrics-words-placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.lyrics-words:not(.hidden) .lyrics-words-placeholder { display: none; }
+/* Lyrics block (below detect) */
+.lyrics-block { margin-top: 1.25rem; }
+.lyrics-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
 /* Textarea */
 textarea {
   width: 100%;
@@ -144,8 +397,9 @@ textarea {
   resize: vertical;
   min-height: 120px;
   font-family: inherit;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
+#lyrics-block textarea { margin-bottom: 0; }
 textarea:focus {
   outline: none;
   border-color: var(--primary);
@@ -188,7 +442,10 @@ textarea:focus {
 }
 .btn-download:hover { background: #16a34a; }
 
-.action-group { margin-top: 0.5rem; }
+.action-group { margin-top: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.engine-select-wrap { display: inline-flex; align-items: center; gap: 0.5rem; }
+.engine-select-wrap .label-text { font-size: 0.9rem; color: var(--text-muted); }
+.engine-select-wrap select { padding: 0.35rem 0.6rem; border-radius: var(--radius-sm); background: var(--bg); border: 1px solid var(--border); color: var(--text); }
 .primary-actions {
   display: flex;
   flex-wrap: wrap;

@@ -21,14 +21,46 @@ def _audio_to_wav_16k_mono(audio_path: Path) -> Path:
     return out
 
 
+def _build_phrase_list(text: str | None, max_phrases: int = 500) -> list[str]:
+    """Extrait phrases, groupes de mots puis mots pour la phrase list Azure (meilleure précision)."""
+    if not (text or "").strip():
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    raw = (text or "").strip()
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    for line in lines:
+        if len(out) >= max_phrases:
+            break
+        if line and line.lower() not in seen:
+            seen.add(line.lower())
+            out.append(line)
+    words_all = raw.replace("\n", " ").split()
+    for i in range(0, len(words_all), 3):
+        chunk = " ".join(words_all[i : i + 3]).strip()
+        if chunk and len(out) < max_phrases and chunk.lower() not in seen:
+            seen.add(chunk.lower())
+            out.append(chunk)
+    for w in words_all:
+        w = w.strip()
+        if not w or len(out) >= max_phrases:
+            continue
+        if w.lower() not in seen:
+            seen.add(w.lower())
+            out.append(w)
+    return out[:max_phrases]
+
+
 def transcribe_to_words(
     audio_path: str | Path,
     subscription_key: str,
     region: str,
     language: str = "fr-FR",
+    phrase_hints: str | list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Transcrit l'audio avec Azure Speech et retourne une liste de mots avec timestamps.
+    phrase_hints : texte ou liste de phrases pour améliorer la reconnaissance (noms, mots rares).
     :return: liste de {"start_time_ms", "end_time_ms", "text"}
     """
     import azure.cognitiveservices.speech as speechsdk
@@ -46,6 +78,14 @@ def transcribe_to_words(
         speech_config.speech_recognition_language = language
         audio_config = speechsdk.audio.AudioConfig(filename=str(wav_path))
         recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+        # Liste de phrases pour améliorer la précision (noms, paroles connues, etc.)
+        if phrase_hints is not None:
+            phrases = _build_phrase_list(phrase_hints if isinstance(phrase_hints, str) else "\n".join(phrase_hints))
+            if phrases:
+                grammar = speechsdk.PhraseListGrammar.from_recognizer(recognizer)
+                for p in phrases:
+                    grammar.addPhrase(p)
 
         words: list[dict[str, Any]] = []
         finished = threading.Event()
@@ -80,5 +120,5 @@ def transcribe_to_words(
         recognizer.stop_continuous_recognition_async().get()
         return words
     finally:
-        if wav_path and wav_path.exists():
-            wav_path.unlink(missing_ok=True)
+        # Ne pas supprimer le .wav ici : sous Windows le SDK Azure peut encore détenir le fichier (WinError 32).
+        pass
