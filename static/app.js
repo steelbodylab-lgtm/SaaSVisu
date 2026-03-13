@@ -397,7 +397,7 @@
     overlay.style.fontFamily = st.font;
     overlay.style.fontSize = st.size + "px";
     overlay.style.color = st.color;
-    overlay.className = "preview-overlay preview-pos-" + st.position;
+    overlay.className = "preview-overlay preview-pos-" + st.position + " effect-" + (st.effect || "classique");
   }
 
   var previewAnimationId = null;
