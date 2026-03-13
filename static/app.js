@@ -137,10 +137,70 @@
       var text = await r.text();
       var data = {};
       try { data = JSON.parse(text); } catch (_) { data = { detail: text || "Erreur serveur" }; }
-      if (r.ok) setStatus("upload-status", "Audio enregistré.");
-      else setStatus("upload-status", data.detail || "Erreur " + r.status, true);
+      if (r.ok) {
+        setStatus("upload-status", "Audio enregistré. Choisis un extrait de 20 s ci-dessous.");
+        showExcerptPanel(data.duration_seconds);
+      } else {
+        setStatus("upload-status", data.detail || "Erreur " + r.status, true);
+      }
     } catch (e) {
       setStatus("upload-status", "Erreur: " + (e && e.message ? e.message : String(e)), true);
+    }
+  }
+
+  function showExcerptPanel(durationSeconds) {
+    var panel = document.getElementById("excerpt-panel");
+    var startInput = document.getElementById("excerpt-start");
+    var durationInput = document.getElementById("excerpt-duration");
+    if (!panel || !startInput) return;
+    if (durationSeconds != null && durationSeconds > 0) {
+      startInput.max = Math.max(0, durationSeconds - 1);
+      startInput.placeholder = "0 à " + Math.floor(durationSeconds);
+    } else {
+      fetch(API + "/projects/" + projectId + "/audio/duration")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.duration_seconds > 0) {
+            startInput.max = Math.max(0, d.duration_seconds - 1);
+            startInput.placeholder = "0 à " + Math.floor(d.duration_seconds);
+          }
+        })
+        .catch(function () {});
+    }
+    panel.classList.remove("hidden");
+  }
+
+  async function applyExcerpt() {
+    var id = projectId;
+    if (!id) return;
+    var startInput = document.getElementById("excerpt-start");
+    var durationInput = document.getElementById("excerpt-duration");
+    var statusEl = document.getElementById("excerpt-status");
+    var start = parseFloat(startInput && startInput.value) || 0;
+    var duration = parseFloat(durationInput && durationInput.value) || 20;
+    if (duration <= 0 || duration > 120) duration = 20;
+    if (start < 0) start = 0;
+    if (statusEl) statusEl.textContent = "Application de l'extrait…";
+    try {
+      var r = await fetch(API + "/projects/" + id + "/audio/segment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ start_seconds: start, duration_seconds: duration }),
+      });
+      var text = await r.text();
+      var data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { detail: text || "Erreur serveur" }; }
+      if (r.ok) {
+        if (statusEl) { statusEl.textContent = "Extrait appliqué. Tu peux maintenant détecter les paroles (étape 2)."; statusEl.className = "feedback ok"; }
+      } else {
+        var msg = data.detail || ("Erreur " + r.status);
+        if (r.status === 404 && (msg === "Not Found" || !data.detail)) {
+          msg = "Route introuvable. Redémarre le serveur (uvicorn) puis réessaie.";
+        }
+        if (statusEl) { statusEl.textContent = msg; statusEl.className = "feedback err"; }
+      }
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = "Erreur: " + (e && e.message ? e.message : String(e)); statusEl.className = "feedback err"; }
     }
   }
 
@@ -308,6 +368,7 @@
     };
   }
 
+  /** Affichage strict : le mot n'apparaît que entre start_time_ms et end_time_ms (les pauses restent vides). */
   function updatePreviewOverlay() {
     var overlay = document.getElementById("preview-overlay");
     var audio = document.getElementById("preview-audio");
@@ -316,14 +377,18 @@
     var idx = -1;
     for (var i = 0; i < currentSegments.length; i++) {
       var s = currentSegments[i];
-      if (tMs >= (s.start_time_ms || 0) && tMs <= (s.end_time_ms || 0)) {
+      var startMs = s.start_time_ms || 0;
+      var endMs = s.end_time_ms || 0;
+      if (tMs >= startMs && tMs < endMs) {
         idx = i;
         break;
       }
     }
     var text = "";
+    document.querySelectorAll("#lyrics-words .word-box-wrap").forEach(function (w) { w.classList.remove("current-word"); });
     if (idx >= 0) {
       var wrap = document.querySelector("#lyrics-words .word-box-wrap[data-segment-index=\"" + idx + "\"]");
+      if (wrap) wrap.classList.add("current-word");
       var box = wrap && wrap.querySelector(".word-box");
       text = (box && box.textContent ? box.textContent : "").trim().replace(/\s+/g, " ") || (currentSegments[idx].text || "");
     }
@@ -333,6 +398,17 @@
     overlay.style.fontSize = st.size + "px";
     overlay.style.color = st.color;
     overlay.className = "preview-overlay preview-pos-" + st.position;
+  }
+
+  var previewAnimationId = null;
+  function previewSyncLoop() {
+    updatePreviewOverlay();
+    var audio = document.getElementById("preview-audio");
+    if (audio && !audio.paused && !audio.ended) {
+      previewAnimationId = requestAnimationFrame(previewSyncLoop);
+    } else {
+      previewAnimationId = null;
+    }
   }
 
   function setPreviewStageRatio() {
@@ -354,9 +430,22 @@
     var ratioEl = document.getElementById("select-ratio");
     if (ratioEl) ratioEl.addEventListener("change", setPreviewStageRatio);
     audio.src = API + "/projects/" + projectId + "/audio";
-    audio.onseeked = updatePreviewOverlay;
-    audio.ontimeupdate = function () {
+    audio.onseeked = function () {
       updatePreviewOverlay();
+      if (previewAnimationId == null && !audio.paused) previewAnimationId = requestAnimationFrame(previewSyncLoop);
+    };
+    audio.onplay = function () {
+      if (previewAnimationId != null) cancelAnimationFrame(previewAnimationId);
+      previewAnimationId = requestAnimationFrame(previewSyncLoop);
+    };
+    audio.onpause = audio.onended = function () {
+      if (previewAnimationId != null) {
+        cancelAnimationFrame(previewAnimationId);
+        previewAnimationId = null;
+      }
+      updatePreviewOverlay();
+    };
+    audio.ontimeupdate = function () {
       if (bgVideo && bgVideo.classList.contains("active")) {
         bgVideo.currentTime = audio.currentTime;
       }
@@ -398,6 +487,8 @@
     fillDefaultOptions();
     setupDropzone("dropzone-audio", "input-audio", "audio-filename", uploadAudioFile);
     setupDropzone("dropzone-background", "input-background", "background-filename", uploadBackgroundFile);
+    var btnApplyExcerpt = document.getElementById("btn-apply-excerpt");
+    if (btnApplyExcerpt) btnApplyExcerpt.addEventListener("click", applyExcerpt);
     ensureProject().then(function () {}, function () {});
     loadRenderOptions();
     loadSpeechConfig();

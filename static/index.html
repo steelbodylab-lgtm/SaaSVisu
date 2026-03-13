@@ -37,6 +37,15 @@
           </div>
         </div>
         <p id="upload-status" class="feedback"></p>
+        <div id="excerpt-panel" class="excerpt-panel hidden">
+          <p class="step-hint">Choisis un extrait de 20 secondes sur lequel détecter les paroles.</p>
+          <div class="excerpt-row">
+            <label><span class="label-text">Début (secondes)</span><input type="number" id="excerpt-start" min="0" step="0.5" value="0"></label>
+            <label><span class="label-text">Durée (secondes)</span><input type="number" id="excerpt-duration" min="1" max="120" value="20"></label>
+            <button type="button" id="btn-apply-excerpt" class="btn btn-primary">Appliquer l'extrait</button>
+          </div>
+          <p id="excerpt-status" class="feedback"></p>
+        </div>
       </section>
 
       <section class="step" data-step="2">

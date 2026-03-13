@@ -46,6 +46,12 @@ class SyncSegmentsBody(BaseModel):
     segments: list[dict]
 
 
+class AudioSegmentBody(BaseModel):
+    """Début et durée de l'extrait à conserver (en secondes)."""
+    start_seconds: float = 0.0
+    duration_seconds: float = 20.0
+
+
 @app.get("/")
 def root():
     """Sert l'interface locale si elle existe, sinon JSON d'accueil."""
@@ -138,15 +144,72 @@ def list_projects():
 
 @app.post("/projects/{project_id}/audio")
 async def upload_audio(project_id: str, file: UploadFile = File(...)):
-    """Upload un fichier audio dans le projet."""
+    """Upload un fichier audio dans le projet (fichier complet). Ensuite tu peux choisir un extrait de 20 s."""
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists() or not (project_path / "projet.json").exists():
         raise HTTPException(status_code=404, detail="Projet introuvable")
-    ext = Path(file.filename or "").suffix or ".mp3"
+    ext = (Path(file.filename or "").suffix or ".mp3").lower()
+    if ext not in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}:
+        ext = ".mp3"
     dest = project_path / "audio" / f"track{ext}"
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
-    return {"ok": True, "path": str(dest)}
+    duration_seconds = None
+    try:
+        from saasvisu.audio_ingest import get_duration_seconds
+        duration_seconds = get_duration_seconds(dest)
+    except Exception:
+        pass
+    return {"ok": True, "path": str(dest), "duration_seconds": duration_seconds}
+
+
+@app.get("/projects/{project_id}/audio/duration")
+def get_audio_duration(project_id: str):
+    """Retourne la durée de l'audio du projet (pour choisir l'extrait)."""
+    from saasvisu.audio_ingest import get_duration_seconds
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    audio_dir = project_path / "audio"
+    audio_file = next(audio_dir.glob("*"), None)
+    if not audio_file or not audio_file.is_file():
+        raise HTTPException(status_code=404, detail="Aucun fichier audio")
+    try:
+        duration_seconds = get_duration_seconds(audio_file)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"duration_seconds": duration_seconds}
+
+
+@app.post("/projects/{project_id}/audio/segment")
+def apply_audio_segment(project_id: str, body: AudioSegmentBody):
+    """Conserve uniquement l'extrait [start_seconds, start_seconds + duration_seconds]. La détection des paroles se fera sur cet extrait."""
+    from pydub import AudioSegment
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    audio_dir = project_path / "audio"
+    audio_file = next(audio_dir.glob("*"), None)
+    if not audio_file or not audio_file.is_file():
+        raise HTTPException(status_code=404, detail="Aucun fichier audio")
+    start_ms = int(body.start_seconds * 1000)
+    duration_ms = int(body.duration_seconds * 1000)
+    if start_ms < 0 or duration_ms <= 0:
+        raise HTTPException(status_code=400, detail="start_seconds >= 0 et duration_seconds > 0")
+    try:
+        seg = AudioSegment.from_file(str(audio_file))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Fichier audio invalide : {e}")
+    total_ms = len(seg)
+    end_ms = min(start_ms + duration_ms, total_ms)
+    if start_ms >= total_ms:
+        raise HTTPException(status_code=400, detail="start_seconds dépasse la durée de l'audio")
+    excerpt = seg[start_ms:end_ms]
+    fmt = (audio_file.suffix or ".mp3").lstrip(".").lower()
+    if fmt == "m4a":
+        fmt = "ipod"
+    excerpt.export(str(audio_file), format=fmt)
+    return {"ok": True, "start_seconds": body.start_seconds, "duration_seconds": (end_ms - start_ms) / 1000.0}
 
 
 # Extensions autorisées pour le fond (photo ou vidéo)
@@ -296,11 +359,11 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
                 th = threading.Thread(target=run_local)
                 th.daemon = True
                 th.start()
-                th.join(timeout=300)  # 5 min max (premier run = téléchargement modèle ~1 Go)
+                th.join(timeout=900)  # 15 min max (premier run = téléchargement modèle ~1 Go)
                 if th.is_alive():
                     raise HTTPException(
                         status_code=504,
-                        detail="Détection HeartMuLa (local) trop longue (timeout 5 min). Premier lancement ? Le modèle se télécharge (~1 Go) — réessaie dans quelques minutes. Sinon, utilise un extrait audio plus court ou Whisper.",
+                        detail="Détection HeartMuLa (local) trop longue (timeout 15 min). Premier lancement ? Le modèle se télécharge (~1 Go) — réessaie dans quelques minutes. Sinon, utilise un extrait audio plus court ou Whisper.",
                     )
                 if exc_holder:
                     raise exc_holder[0]

@@ -214,22 +214,54 @@ def transcribe_lyrics(
 
 def lyrics_text_to_word_segments(lyrics: str, duration_seconds: float) -> list[dict[str, Any]]:
     """
-    Découpe le texte des paroles en mots et répartit les timestamps
-    uniformément sur la durée de l'audio (HeartMuLa ne renvoie pas de timestamps).
+    Découpe le texte en phrases (lignes, ponctuation), répartit le temps avec des pauses
+    entre les phrases, et au sein de chaque phrase répartit proportionnellement à la
+    longueur des mots. HeartMuLa ne renvoie pas de timestamps, donc on estime les pauses.
     """
+    import re
     if not (lyrics or "").strip() or duration_seconds <= 0:
         return []
-    words = [w.strip() for w in lyrics.split() if w.strip()]
-    if not words:
-        return []
-    step_ms = (duration_seconds * 1000) / len(words)
+    # Découper en phrases : newlines ou .,!?;
+    raw_phrases = re.split(r"[\n.!?;]+", lyrics)
+    phrases = []
+    for p in raw_phrases:
+        words_in_p = [w.strip() for w in p.split() if w.strip()]
+        if words_in_p:
+            phrases.append(words_in_p)
+    if not phrases:
+        words = [w.strip() for w in lyrics.split() if w.strip()]
+        if not words:
+            return []
+        phrases = [words]
+
+    total_words = sum(len(p) for p in phrases)
+    total_duration_ms = duration_seconds * 1000
+    # Pause entre phrases : ~0,4 s par coupure (silence naturel)
+    pause_between_phrases_ms = 400
+    n_pauses = max(0, len(phrases) - 1)
+    speech_duration_ms = total_duration_ms - n_pauses * pause_between_phrases_ms
+    if speech_duration_ms <= 0:
+        speech_duration_ms = total_duration_ms * 0.85
+
     segments = []
-    for i, word in enumerate(words):
-        start_ms = int(i * step_ms)
-        end_ms = int((i + 1) * step_ms) if i < len(words) - 1 else int(duration_seconds * 1000)
-        segments.append({
-            "text": word,
-            "start_time_ms": start_ms,
-            "end_time_ms": end_ms,
-        })
+    t_ms = 0.0
+    for ip, phrase in enumerate(phrases):
+        phrase_word_count = len(phrase)
+        phrase_duration_ms = (phrase_word_count / total_words) * speech_duration_ms if total_words else 0
+        total_chars = max(sum(len(w) for w in phrase), 1)
+        t_phrase = t_ms
+        for iw, word in enumerate(phrase):
+            w_start = int(t_phrase)
+            ratio = len(word) / total_chars
+            t_phrase += ratio * phrase_duration_ms
+            w_end = int(t_phrase) if iw < len(phrase) - 1 else int(t_ms + phrase_duration_ms)
+            segments.append({
+                "text": word,
+                "start_time_ms": w_start,
+                "end_time_ms": w_end,
+            })
+        t_ms += phrase_duration_ms + (pause_between_phrases_ms if ip < len(phrases) - 1 else 0)
+
+    if segments:
+        segments[-1]["end_time_ms"] = min(int(total_duration_ms), segments[-1]["end_time_ms"])
     return segments

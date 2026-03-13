@@ -46,18 +46,39 @@ def transcribe_to_segments(
     return segments
 
 
+def _words_from_segment_proportional(
+    seg_start_ms: int, seg_end_ms: int, parts: list[str]
+) -> list[dict[str, Any]]:
+    """Répartit le temps du segment entre les mots proportionnellement à leur longueur."""
+    if not parts:
+        return []
+    total_chars = max(sum(len(p) for p in parts), 1)
+    duration_ms = seg_end_ms - seg_start_ms
+    words = []
+    t_ms = float(seg_start_ms)
+    for i, part in enumerate(parts):
+        w_start = int(t_ms)
+        ratio = len(part) / total_chars
+        t_ms += ratio * duration_ms
+        w_end = seg_end_ms if i == len(parts) - 1 else int(t_ms)
+        words.append({
+            "start_time_ms": w_start,
+            "end_time_ms": w_end,
+            "text": part,
+        })
+    return words
+
+
 def transcribe_to_words(
     audio_path: str | Path,
     model_name: str = "base",
     language: str | None = "fr",
 ) -> list[dict[str, Any]]:
     """
-    Transcrit l'audio et retourne une liste de **mots** avec timestamps
-    (mot par mot pour affichage dynamique).
-    On utilise d'abord la transcription normale (sans word_timestamps, plus fiable),
-    puis on découpe chaque segment en mots et on répartit le temps.
-
-    :return: liste de {"start_time_ms", "end_time_ms", "text"} (text = un mot), triée par temps
+    Transcrit l'audio et retourne une liste de **mots** avec timestamps (mot par mot).
+    Si le modèle supporte word_timestamps (medium, large, large-v3), on les utilise.
+    Sinon on répartit le temps de chaque segment proportionnellement à la longueur des mots.
+    Les pauses entre segments Whisper sont conservées (pas de mot affiché pendant le silence).
     """
     import whisper
 
@@ -68,7 +89,13 @@ def transcribe_to_words(
     model = whisper.load_model(model_name)
     audio = whisper.load_audio(str(audio_path))
     opts = {"language": language} if language else {}
-    # Ne pas utiliser word_timestamps : pas supporté partout et peut planter sur base/small
+    # Word-level timestamps uniquement pour medium/large (évite crash sur base/small)
+    use_word_ts = model_name in ("medium", "large", "large-v2", "large-v3")
+    if use_word_ts:
+        try:
+            opts["word_timestamps"] = True
+        except Exception:
+            use_word_ts = False
     result = model.transcribe(audio, **opts)
 
     words = []
@@ -78,16 +105,23 @@ def transcribe_to_words(
         seg_text = (s.get("text") or "").strip()
         if not seg_text:
             continue
-        parts = [p for p in seg_text.split() if p]
-        if not parts:
-            continue
-        step = (seg_end_ms - seg_start_ms) / len(parts)
-        for i, part in enumerate(parts):
-            w_start = seg_start_ms + int(i * step)
-            w_end = seg_start_ms + int((i + 1) * step) if i < len(parts) - 1 else seg_end_ms
-            words.append({
-                "start_time_ms": w_start,
-                "end_time_ms": w_end,
-                "text": part,
-            })
+
+        # Utiliser les timestamps par mot si disponibles (medium/large)
+        seg_words = s.get("words") if use_word_ts else None
+        if seg_words and isinstance(seg_words, list):
+            for w in seg_words:
+                w_text = (w.get("word") or "").strip()
+                if not w_text:
+                    continue
+                w_start = int(round(float(w.get("start", 0)) * 1000))
+                w_end = int(round(float(w.get("end", 0)) * 1000))
+                words.append({
+                    "start_time_ms": w_start,
+                    "end_time_ms": w_end,
+                    "text": w_text,
+                })
+        else:
+            parts = [p for p in seg_text.split() if p]
+            words.extend(_words_from_segment_proportional(seg_start_ms, seg_end_ms, parts))
+
     return words

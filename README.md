@@ -4,6 +4,14 @@ Outil **local** pour générer des visualizers : **photo ou vidéo** + **audio**
 Pas d’interface web pour l’instant : tout se fait en **ligne de commande (CLI)**.  
 Voir `PLAN_PROJET_SAAS_VISU.md` sur le Bureau pour le plan détaillé.
 
+## Rester à jour avec GitHub
+
+Le code principal est sur la branche **`master`**. Pour récupérer les derniers changements :
+
+```powershell
+git pull origin master
+```
+
 ## Prérequis
 
 - **Python 3.10+**
