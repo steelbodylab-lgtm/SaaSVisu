@@ -16,8 +16,34 @@
       <a href="#tarifs">Tarifs</a>
       <a href="#pourquoi">Pourquoi nous</a>
       <a href="#step-1" class="nav-cta">Créer un visualizer</a>
+      <span class="credits-badge" id="credits-badge" title="Crédits restants"></span>
     </div>
   </nav>
+
+  <!-- MODAL CREDITS -->
+  <div class="modal-overlay hidden" id="credits-modal">
+    <div class="modal-card">
+      <h2 class="modal-title">Choisis ton plan</h2>
+      <p class="modal-sub">Chaque export vidéo consomme 1 crédit.</p>
+      <div class="modal-plans">
+        <button type="button" class="modal-plan" data-plan="decouverte" data-credits="10">
+          <span class="modal-plan-name">Découverte</span>
+          <span class="modal-plan-credits">10 crédits</span>
+          <span class="modal-plan-price">Gratuit</span>
+        </button>
+        <button type="button" class="modal-plan" data-plan="pro" data-credits="50">
+          <span class="modal-plan-name">Pro</span>
+          <span class="modal-plan-credits">50 crédits</span>
+          <span class="modal-plan-price">9 €/mois</span>
+        </button>
+        <button type="button" class="modal-plan" data-plan="studio" data-credits="200">
+          <span class="modal-plan-name">Studio</span>
+          <span class="modal-plan-credits">200 crédits</span>
+          <span class="modal-plan-price">29 €/mois</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div class="page">
 
@@ -146,9 +172,11 @@
               </select>
             </label>
             <button type="button" id="btn-detect-lyrics" class="btn btn-glow">Détecter les paroles</button>
+            <button type="button" id="btn-detect-beats" class="btn btn-secondary">Détecter les beats</button>
             <span id="engine-badge" class="engine-badge" aria-hidden="true"></span>
           </div>
           <p id="sync-status" class="feedback"></p>
+          <p id="beats-status" class="feedback"></p>
           <div class="lyrics-card">
             <div id="lyrics-words" class="lyrics-words hidden">
               <p class="lyrics-words-placeholder">Détecte les paroles. Tu peux modifier le texte dans chaque mot.</p>
@@ -250,11 +278,29 @@
             <input type="hidden" id="select-resolution" value="720p">
             <input type="hidden" id="select-position" value="center">
             <input type="hidden" id="select-display" value="mot">
+            <div class="ctrl-group">
+              <label><span class="label-text">Effet beats</span>
+                <div class="format-pills">
+                  <button type="button" class="pill pill-active" data-beat="none">Aucun</button>
+                  <button type="button" class="pill" data-beat="flash">Flash</button>
+                  <button type="button" class="pill" data-beat="zoom">Zoom</button>
+                  <button type="button" class="pill" data-beat="shake">Shake</button>
+                </div>
+              </label>
+              <input type="hidden" id="select-beat-effect" value="none">
+            </div>
+            <div class="ctrl-group preset-row">
+              <label><span class="label-text">Preset</span>
+                <select id="select-preset"><option value="">— Aucun —</option></select>
+              </label>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-save-preset">Sauvegarder ce style</button>
+            </div>
           </div>
           <div id="preview-area" class="preview-area hidden">
             <div class="preview-stage" id="preview-stage">
               <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
               <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
+              <div class="beat-overlay"></div>
               <div id="preview-overlay" class="preview-overlay"></div>
             </div>
             <audio id="preview-audio" controls class="preview-audio"></audio>
@@ -265,6 +311,16 @@
           </div>
           <div id="post-export" class="post-export hidden">
             <a id="link-download" href="#" download class="btn btn-download">Télécharger le MP4</a>
+          </div>
+          <div id="remix-panel" class="remix-panel hidden">
+            <h3 class="remix-title">Remix</h3>
+            <p class="remix-sub">Même paroles, nouveau style. Un clic = nouvelle variation.</p>
+            <div class="remix-actions">
+              <select id="remix-preset"><option value="">Aléatoire</option></select>
+              <button type="button" class="btn btn-glow btn-remix" id="btn-remix">Remixer</button>
+            </div>
+            <p id="remix-status" class="feedback"></p>
+            <span id="remix-count" class="remix-count"></span>
           </div>
           <button type="button" class="btn btn-secondary btn-prev" data-goto="step-2">← Retour</button>
         </div>

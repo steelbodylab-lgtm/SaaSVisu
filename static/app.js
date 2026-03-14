@@ -5,6 +5,9 @@
   var currentPhrases = [];
   var displayMode = "mot";
   var PHRASE_GAP_MS = 550;
+  var currentBeats = [];
+  var beatEffect = "none";
+  var lastBeatIdx = -1;
 
   function groupIntoPhrases(segments) {
     if (!segments || !segments.length) return [];
@@ -395,6 +398,10 @@
             displayMode = pill.dataset.display;
             document.getElementById("select-display").value = pill.dataset.display;
           }
+          if (pill.dataset.beat) {
+            beatEffect = pill.dataset.beat;
+            document.getElementById("select-beat-effect").value = pill.dataset.beat;
+          }
           setPreviewStageRatio();
           updatePreviewOverlay();
         });
@@ -711,8 +718,12 @@
   function previewLoop() {
     updatePreviewOverlay();
     var audio = document.getElementById("preview-audio");
-    if (audio && !audio.paused && !audio.ended) previewAnimId = requestAnimationFrame(previewLoop);
-    else previewAnimId = null;
+    if (audio && !audio.paused && !audio.ended) {
+      checkBeats((audio.currentTime || 0) * 1000);
+      previewAnimId = requestAnimationFrame(previewLoop);
+    } else {
+      previewAnimId = null;
+    }
   }
   function setPreviewStageRatio() {
     var stage = document.getElementById("preview-stage");
@@ -769,6 +780,246 @@
     updatePreviewOverlay();
   }
 
+  /* ======== CREDITS ======== */
+  var CREDITS_KEY = "saasvisu_credits";
+
+  function getCredits() {
+    try { return JSON.parse(localStorage.getItem(CREDITS_KEY)); } catch (_) { return null; }
+  }
+
+  function saveCredits(data) {
+    localStorage.setItem(CREDITS_KEY, JSON.stringify(data));
+    updateCreditsBadge();
+  }
+
+  function updateCreditsBadge() {
+    var badge = document.getElementById("credits-badge");
+    if (!badge) return;
+    var data = getCredits();
+    if (!data) { badge.textContent = "?"; badge.classList.add("low"); return; }
+    badge.textContent = data.credits_remaining + " cr.";
+    badge.classList.toggle("low", data.credits_remaining <= 3);
+  }
+
+  function useCredit() {
+    var data = getCredits();
+    if (!data) return false;
+    if (data.credits_remaining <= 0) return false;
+    data.credits_remaining--;
+    data.total_used++;
+    data.history.push({ date: new Date().toISOString(), project: projectId });
+    saveCredits(data);
+    return true;
+  }
+
+  function choosePlan(plan, credits) {
+    saveCredits({ plan: plan, credits_remaining: credits, total_used: 0, history: [] });
+    var modal = document.getElementById("credits-modal");
+    if (modal) modal.classList.add("hidden");
+  }
+
+  function initCredits() {
+    var data = getCredits();
+    if (!data) {
+      var modal = document.getElementById("credits-modal");
+      if (modal) modal.classList.remove("hidden");
+    }
+    updateCreditsBadge();
+    document.querySelectorAll(".modal-plan").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        choosePlan(btn.dataset.plan, parseInt(btn.dataset.credits, 10) || 10);
+      });
+    });
+    var badge = document.getElementById("credits-badge");
+    if (badge) badge.addEventListener("click", function () {
+      var modal = document.getElementById("credits-modal");
+      if (modal) modal.classList.toggle("hidden");
+    });
+  }
+
+  /* ======== BEATS ======== */
+  async function detectBeats() {
+    if (!projectId) { setStatus("beats-status", "Crée un projet d'abord.", true); return; }
+    setStatus("beats-status", "Détection des beats…");
+    try {
+      var r = await fetch(API + "/projects/" + projectId + "/beats", { method: "POST" });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Erreur");
+      currentBeats = d.beats || [];
+      setStatus("beats-status", currentBeats.length + " beats détectés.");
+    } catch (e) { setStatus("beats-status", e.message, true); }
+  }
+
+  async function loadBeats() {
+    if (!projectId) return;
+    try {
+      var r = await fetch(API + "/projects/" + projectId + "/beats");
+      var d = await r.json();
+      currentBeats = d.beats || [];
+    } catch (_) { currentBeats = []; }
+  }
+
+  function triggerBeatEffect(stage) {
+    if (beatEffect === "flash") {
+      var overlay = stage.querySelector(".beat-overlay");
+      if (overlay) {
+        overlay.classList.remove("flash");
+        void overlay.offsetWidth;
+        overlay.classList.add("flash");
+      }
+    } else if (beatEffect === "zoom") {
+      stage.classList.remove("beat-zoom");
+      void stage.offsetWidth;
+      stage.classList.add("beat-zoom");
+    } else if (beatEffect === "shake") {
+      stage.classList.remove("beat-shake");
+      void stage.offsetWidth;
+      stage.classList.add("beat-shake");
+    }
+  }
+
+  function checkBeats(tMs) {
+    if (beatEffect === "none" || !currentBeats.length) return;
+    var stage = document.getElementById("preview-stage");
+    if (!stage) return;
+    for (var i = 0; i < currentBeats.length; i++) {
+      if (Math.abs(tMs - currentBeats[i]) < 50 && i !== lastBeatIdx) {
+        lastBeatIdx = i;
+        triggerBeatEffect(stage);
+        return;
+      }
+    }
+  }
+
+  /* ======== PRESETS ======== */
+  function collectCurrentPreset() {
+    return {
+      font: (document.getElementById("select-font") || {}).value || "Arial",
+      font_size: parseInt((document.getElementById("input-font-size") || {}).value, 10) || 48,
+      effect: (document.getElementById("select-effect") || {}).value || "classique",
+      text_color: (document.getElementById("input-text-color") || {}).value || "#FFFFFF",
+      position: (document.getElementById("select-position") || {}).value || "center",
+      display_mode: displayMode || "mot",
+      lyric_animation: selectedLyricAnim ? selectedLyricAnim.cls.replace("lyric-anim-", "") : "",
+      ratio: (document.getElementById("select-ratio") || {}).value || "16:9",
+      resolution: (document.getElementById("select-resolution") || {}).value || "720p",
+      beat_effect: (document.getElementById("select-beat-effect") || {}).value || "none"
+    };
+  }
+
+  function applyPreset(p) {
+    if (!p) return;
+    function setVal(id, val) { var el = document.getElementById(id); if (el && val !== undefined) el.value = val; }
+    setVal("select-font", p.font);
+    setVal("select-effect", p.effect);
+    setVal("input-font-size", p.font_size);
+    var sv = document.getElementById("font-size-val"); if (sv) sv.textContent = p.font_size || 48;
+    setVal("input-text-color", p.text_color);
+    setVal("select-ratio", p.ratio);
+    setVal("select-resolution", p.resolution);
+    setVal("select-position", p.position);
+    setVal("select-display", p.display_mode);
+    displayMode = p.display_mode || "mot";
+    document.querySelectorAll('.pill[data-ratio]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.ratio === p.ratio); });
+    document.querySelectorAll('.pill[data-res]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.res === p.resolution); });
+    document.querySelectorAll('.pill[data-pos]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.pos === p.position); });
+    document.querySelectorAll('.pill[data-display]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.display === p.display_mode); });
+    if (p.position === "drag") enableDragMode(); else disableDragMode();
+    if (p.lyric_animation) {
+      var match = LYRIC_ANIMS.find(function (a) { return a.cls === "lyric-anim-" + p.lyric_animation; });
+      if (match) { selectedLyricAnim = match; var lbl = document.getElementById("anim-selected-label"); if (lbl) lbl.textContent = "Animation active : " + match.label; }
+    }
+    setPreviewStageRatio();
+    updatePreviewOverlay();
+  }
+
+  async function loadPresets() {
+    if (!projectId) return;
+    var sel = document.getElementById("select-preset");
+    if (!sel) return;
+    try {
+      var r = await fetch(API + "/projects/" + projectId + "/presets");
+      var data = await r.json();
+      sel.innerHTML = '<option value="">— Aucun —</option>';
+      (data.presets || []).forEach(function (p) {
+        sel.appendChild(new Option(p.name, p.name));
+      });
+    } catch (_) {}
+  }
+
+  async function savePreset() {
+    if (!projectId) { setStatus("render-status", "Crée un projet d'abord.", true); return; }
+    var name = prompt("Nom du preset :");
+    if (!name || !name.trim()) return;
+    var preset = collectCurrentPreset();
+    preset.name = name.trim();
+    try {
+      var r = await fetch(API + "/projects/" + projectId + "/presets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(preset) });
+      var d = await r.json();
+      if (r.ok) { setStatus("render-status", "Preset « " + d.name + " » sauvegardé."); loadPresets(); }
+      else setStatus("render-status", d.detail || "Erreur", true);
+    } catch (e) { setStatus("render-status", e.message, true); }
+  }
+
+  function initPresets() {
+    var btnSave = document.getElementById("btn-save-preset");
+    if (btnSave) btnSave.addEventListener("click", savePreset);
+    var sel = document.getElementById("select-preset");
+    if (sel) sel.addEventListener("change", async function () {
+      if (!sel.value || !projectId) return;
+      try {
+        var r = await fetch(API + "/projects/" + projectId + "/presets/" + encodeURIComponent(sel.value));
+        if (r.ok) applyPreset(await r.json());
+      } catch (_) {}
+    });
+  }
+
+  /* ======== REMIX ======== */
+  var remixCount = 0;
+
+  function showRemixPanel() {
+    var panel = document.getElementById("remix-panel");
+    if (panel) panel.classList.remove("hidden");
+    loadRemixPresets();
+  }
+
+  async function loadRemixPresets() {
+    if (!projectId) return;
+    var sel = document.getElementById("remix-preset");
+    if (!sel) return;
+    try {
+      var r = await fetch(API + "/projects/" + projectId + "/presets");
+      var data = await r.json();
+      sel.innerHTML = '<option value="">Aléatoire</option>';
+      (data.presets || []).forEach(function (p) { sel.appendChild(new Option(p.name, p.name)); });
+    } catch (_) {}
+  }
+
+  function initRemix() {
+    var btn = document.getElementById("btn-remix");
+    if (!btn) return;
+    btn.addEventListener("click", async function () {
+      if (!projectId) return;
+      var cr = getCredits();
+      if (cr && cr.credits_remaining <= 0) { setStatus("remix-status", "Plus de crédits ! Change de plan.", true); return; }
+      var sel = document.getElementById("remix-preset");
+      var presetName = sel ? sel.value : "";
+      setStatus("remix-status", "Remix en cours…");
+      try {
+        var body = presetName ? { preset_name: presetName } : {};
+        var r = await fetch(API + "/projects/" + projectId + "/remix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.detail || "Erreur remix");
+        remixCount++;
+        var countEl = document.getElementById("remix-count");
+        if (countEl) countEl.textContent = remixCount + " variation" + (remixCount > 1 ? "s" : "") + " générée" + (remixCount > 1 ? "s" : "");
+        setStatus("remix-status", "Remix terminé !");
+        useCredit();
+        showDownloadLink();
+      } catch (e) { setStatus("remix-status", e.message, true); }
+    });
+  }
+
   /* ======== DOWNLOAD ======== */
   function showDownloadLink() {
     if (!projectId) return;
@@ -787,6 +1038,9 @@
     initVignettes();
     initPills();
     initOverlayDrag();
+    initPresets();
+    initRemix();
+    initCredits();
     fillDefaultOptions();
 
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
@@ -802,7 +1056,7 @@
     setupDropzone("dropzone-background", "input-background", "background-filename", uploadBackgroundFile);
     var btnExcerpt = document.getElementById("btn-apply-excerpt");
     if (btnExcerpt) btnExcerpt.addEventListener("click", applyExcerpt);
-    ensureProject().catch(function () {});
+    ensureProject().then(function () { loadPresets(); }).catch(function () {});
     loadRenderOptions();
     loadSpeechConfig();
 
@@ -838,10 +1092,16 @@
       } catch (e) { setStatus("sync-status", e.message, true); }
     });
 
+    /* Détection beats */
+    var btnBeats = document.getElementById("btn-detect-beats");
+    if (btnBeats) btnBeats.addEventListener("click", detectBeats);
+
     /* Export MP4 */
     var btnExport = document.getElementById("btn-export");
     if (btnExport) btnExport.addEventListener("click", async function () {
       try {
+        var cr = getCredits();
+        if (cr && cr.credits_remaining <= 0) { setStatus("render-status", "Plus de crédits ! Change de plan.", true); return; }
         var id = await ensureProject();
         var segments = getSegmentsFromBoxes();
         if (!segments.length) { setStatus("render-status", "Détecte les paroles d'abord.", true); return; }
@@ -878,11 +1138,14 @@
           params.set("lyric_animation", selectedLyricAnim.cls.replace("lyric-anim-", ""));
         }
         params.set("display_mode", displayMode || "mot");
+        params.set("beat_effect", beatEffect || "none");
         var r2 = await fetch(API + "/projects/" + id + "/render?" + params.toString(), { method: "POST" });
         var t = await r2.text(); var d2 = {}; try { d2 = JSON.parse(t); } catch (_) {}
         if (!r2.ok) throw new Error(d2.detail || d2.message || t || "Erreur serveur");
         setStatus("render-status", "Vidéo générée !");
+        useCredit();
         showDownloadLink();
+        showRemixPanel();
       } catch (e) { setStatus("render-status", e.message, true); }
     });
 

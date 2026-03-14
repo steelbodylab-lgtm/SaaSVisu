@@ -52,6 +52,21 @@ class AudioSegmentBody(BaseModel):
     duration_seconds: float = 20.0
 
 
+class PresetBody(BaseModel):
+    """Preset de rendu (police, effet, animation, position, etc.)."""
+    name: str
+    font: str = "Arial"
+    font_size: int = 48
+    effect: str = "classique"
+    text_color: str = "#FFFFFF"
+    position: str = "center"
+    display_mode: str = "mot"
+    lyric_animation: str = ""
+    ratio: str = "16:9"
+    resolution: str = "720p"
+    beat_effect: str = "none"
+
+
 @app.get("/")
 def root():
     """Sert l'interface locale si elle existe, sinon JSON d'accueil."""
@@ -420,8 +435,9 @@ def run_render(
     pos_y_pct: float | None = None,
     lyric_animation: str = "",
     display_mode: str = "mot",
+    beat_effect: str = "none",
 ):
-    """Lance le rendu vidéo (FFmpeg). Supporte position, animation, display_mode et coordonnées drag."""
+    """Lance le rendu vidéo (FFmpeg). Supporte position, animation, display_mode, beat_effect et coordonnées drag."""
     from saasvisu.render_engine import render_lyric_video
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
@@ -454,6 +470,7 @@ def run_render(
             pos_y_pct=pos_y_pct,
             lyric_animation=(lyric_animation and lyric_animation.strip()) or None,
             display_mode=(display_mode and display_mode.strip()) or "mot",
+            beat_effect=(beat_effect and beat_effect.strip()) or "none",
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -565,6 +582,151 @@ def stream_background(project_id: str):
         if candidate.exists():
             return FileResponse(candidate, media_type=_BG_MIME.get(ext, "application/octet-stream"))
     raise HTTPException(status_code=404, detail="Aucun fond")
+
+
+@app.post("/projects/{project_id}/beats")
+def detect_beats_endpoint(project_id: str, method: str = "onset"):
+    """Détecte les beats / temps forts de l'audio. method=onset (transitoires) ou beat (tempo)."""
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    audio_dir = project_path / "audio"
+    audio_file = next(audio_dir.glob("*"), None)
+    if not audio_file:
+        raise HTTPException(status_code=400, detail="Aucun fichier audio")
+    beats_path = project_path / "beats.json"
+    try:
+        from saasvisu.sync_engine.beat_detector import detect_and_save
+        beats = detect_and_save(audio_file, beats_path, method=method)
+    except ImportError:
+        raise HTTPException(status_code=503, detail="librosa non installé. Exécutez : pip install librosa")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Détection des beats échouée : {e}")
+    return {"ok": True, "beats_count": len(beats), "beats": beats}
+
+
+@app.get("/projects/{project_id}/beats")
+def get_beats(project_id: str):
+    """Retourne les beats détectés (si existants)."""
+    import json
+    project_path = PROJECTS_DIR / project_id
+    beats_path = project_path / "beats.json"
+    if not beats_path.exists():
+        return {"beats": []}
+    return {"beats": json.loads(beats_path.read_text(encoding="utf-8"))}
+
+
+class RemixBody(BaseModel):
+    """Optionnel : nom du preset à appliquer. Si vide, paramètres aléatoires."""
+    preset_name: str | None = None
+
+
+@app.post("/projects/{project_id}/remix")
+def run_remix(project_id: str, body: RemixBody | None = None):
+    """Re-rend la vidéo avec un preset ou des paramètres aléatoires, sans re-détecter les paroles."""
+    import json, random
+    from saasvisu.render_engine import render_lyric_video
+    from saasvisu.render_engine.ffmpeg_renderer import FONTS, EFFECTS
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    sync_path = project_path / "sync.json"
+    if not sync_path.exists():
+        raise HTTPException(status_code=400, detail="Synchro non effectuée. Détecte les paroles d'abord.")
+    audio_dir = project_path / "audio"
+    audio_file = next(audio_dir.glob("*"), None)
+    if not audio_file:
+        raise HTTPException(status_code=400, detail="Aucun fichier audio")
+    preset_name = (body and body.preset_name) or None
+    params = {}
+    if preset_name:
+        preset_path = project_path / "presets" / f"{preset_name}.json"
+        if preset_path.exists():
+            params = json.loads(preset_path.read_text(encoding="utf-8"))
+    if not params:
+        anims = ["fadeIn", "slideUp", "bounceIn", "scaleIn", "glitch", "blurReveal", "neonPulse", "dropIn", "zoomBlur", "spinIn"]
+        modes = ["mot", "accumulation", "ligne", "scroll"]
+        params = {
+            "font": random.choice(FONTS[:20]),
+            "font_size": random.choice([36, 42, 48, 56, 64]),
+            "effect": random.choice(list(EFFECTS.keys())),
+            "text_color": "#" + "".join(random.choices("0123456789ABCDEF", k=6)),
+            "position": random.choice(["center", "bottom", "top"]),
+            "display_mode": random.choice(modes),
+            "lyric_animation": random.choice(anims),
+            "ratio": "16:9",
+            "resolution": "720p",
+        }
+    background_path = None
+    for ext in BACKGROUND_EXT:
+        candidate = project_path / f"background{ext}"
+        if candidate.exists():
+            background_path = candidate
+            break
+    out_path = project_path / "output.mp4"
+    try:
+        render_lyric_video(
+            audio_file, sync_path, out_path,
+            template_name="minimal_16x9",
+            ratio=params.get("ratio", "16:9"),
+            resolution=params.get("resolution", "720p"),
+            background_path=background_path,
+            font_name=params.get("font", "Arial"),
+            font_size=params.get("font_size") or None,
+            text_effect=params.get("effect", "classique"),
+            text_color=params.get("text_color"),
+            position=params.get("position", "center"),
+            lyric_animation=params.get("lyric_animation") or None,
+            display_mode=params.get("display_mode", "mot"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Remix échoué : {str(e)}")
+    return {"ok": True, "output": str(out_path), "params": params}
+
+
+@app.post("/projects/{project_id}/presets")
+def save_preset(project_id: str, body: PresetBody):
+    """Sauvegarde un preset de rendu dans le projet."""
+    import json, re
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    presets_dir = project_path / "presets"
+    presets_dir.mkdir(exist_ok=True)
+    safe_name = re.sub(r'[^\w\- ]', '', body.name).strip() or "preset"
+    data = body.model_dump()
+    (presets_dir / f"{safe_name}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "name": safe_name}
+
+
+@app.get("/projects/{project_id}/presets")
+def list_presets(project_id: str):
+    """Liste les presets de rendu du projet."""
+    import json
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    presets_dir = project_path / "presets"
+    if not presets_dir.exists():
+        return {"presets": []}
+    presets = []
+    for f in sorted(presets_dir.glob("*.json")):
+        try:
+            presets.append(json.loads(f.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return {"presets": presets}
+
+
+@app.get("/projects/{project_id}/presets/{preset_name}")
+def get_preset(project_id: str, preset_name: str):
+    """Charge un preset par son nom."""
+    import json
+    project_path = PROJECTS_DIR / project_id
+    preset_path = project_path / "presets" / f"{preset_name}.json"
+    if not preset_path.exists():
+        raise HTTPException(status_code=404, detail="Preset introuvable")
+    return json.loads(preset_path.read_text(encoding="utf-8"))
 
 
 if STATIC_DIR.exists():

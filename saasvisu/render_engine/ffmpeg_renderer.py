@@ -485,6 +485,38 @@ def _get_audio_duration_seconds(audio_path: Path) -> float:
     return float(result.stdout.strip())
 
 
+def _generate_beat_effects_ass(
+    beats_ms: list[int], width: int, height: int, beat_effect: str = "flash",
+) -> str:
+    """Génère un fichier ASS contenant les effets visuels aux timestamps des beats."""
+    flash_style = f"Style: Flash,Arial,1,&H40FFFFFF,&H00FFFFFF,&H00000000,0,0,0,0,0,5,0,0,0,1"
+    header = [
+        "[Script Info]", "ScriptType: v4.00+",
+        f"PlayResX: {width}", f"PlayResY: {height}", "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        flash_style, "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    lines = list(header)
+    for bms in beats_ms:
+        start = _ms_to_ass_time(bms)
+        end = _ms_to_ass_time(bms + 180)
+        if beat_effect == "flash":
+            lines.append(f"Dialogue: 1,{start},{end},Flash,,0,0,0,,{{\\fad(40,140)\\p1}}m 0 0 l {width} 0 l {width} {height} l 0 {height}{{\\p0}}")
+        elif beat_effect == "zoom":
+            end_z = _ms_to_ass_time(bms + 250)
+            lines.append(f"Dialogue: 1,{start},{end_z},Flash,,0,0,0,,{{\\fscx100\\fscy100\\t(0,120,\\fscx108\\fscy108)\\t(120,250,\\fscx100\\fscy100)\\fad(0,80)\\p1}}m 0 0 l {width} 0 l {width} {height} l 0 {height}{{\\p0}}")
+        elif beat_effect == "shake":
+            import random
+            dx = random.randint(-8, 8)
+            dy = random.randint(-6, 6)
+            end_s = _ms_to_ass_time(bms + 120)
+            lines.append(f"Dialogue: 1,{start},{end_s},Flash,,0,0,0,,{{\\an5\\pos({width // 2 + dx},{height // 2 + dy})\\fad(30,90)\\p1}}m 0 0 l {width} 0 l {width} {height} l 0 {height}{{\\p0}}")
+    return "\n".join(lines)
+
+
 def render_lyric_video(
     audio_path: str | Path,
     segments_path: str | Path,
@@ -503,6 +535,7 @@ def render_lyric_video(
     pos_y_pct: float | None = None,
     lyric_animation: str | None = None,
     display_mode: str = "mot",
+    beat_effect: str = "none",
 ) -> Path:
     """
     Génère la vidéo MP4 (visualizer).
@@ -563,14 +596,24 @@ def render_lyric_video(
     ass_path = output_path.parent / (output_path.stem + "_subs.ass")
     ass_path.write_text(ass_content, encoding="utf-8")
 
-    # Chemin ASS pour le filtre : sous Windows le "C:" est mal interprété par FFmpeg,
-    # donc on lance FFmpeg depuis le dossier du projet et on passe uniquement le nom du fichier.
     work_dir = output_path.parent
     ass_filter_name = ass_path.name
 
-    # Fond image/vidéo : remplir tout le cadre (cover), recadrage centré si besoin
+    beat_ass_path = None
+    if beat_effect and beat_effect != "none":
+        beats_json = output_path.parent / "beats.json"
+        if beats_json.exists():
+            import json as _json
+            beats_ms = _json.loads(beats_json.read_text(encoding="utf-8"))
+            if beats_ms:
+                beat_ass_content = _generate_beat_effects_ass(beats_ms, w, h, beat_effect)
+                beat_ass_path = output_path.parent / (output_path.stem + "_beats.ass")
+                beat_ass_path.write_text(beat_ass_content, encoding="utf-8")
+
     scale_crop_filter = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}:(iw-ow)/2:(ih-oh)/2"
     ass_filter = f"ass='{ass_filter_name}'"
+    if beat_ass_path:
+        ass_filter += f",ass='{beat_ass_path.name}'"
 
     if background_path is not None:
         bg_path = Path(background_path)
@@ -618,4 +661,6 @@ def render_lyric_video(
         err = (result.stderr or result.stdout or "").strip() or "FFmpeg a échoué"
         raise RuntimeError(err)
     ass_path.unlink(missing_ok=True)
+    if beat_ass_path:
+        beat_ass_path.unlink(missing_ok=True)
     return output_path

@@ -30,6 +30,10 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 | **Branding (2ᵉ partie du site)** | En cours : nom « SaaS Visu », baseline « Ton monteur de visualizers intelligent », palette violet/nocturne, doc [docs/BRANDING.md](docs/BRANDING.md) |
 | **Landing promo + Tarifs + FAQ** | OK : section Accueil (promo, bénéfices, CTA), bulle Tarifs (Découverte / Pro / Studio), bulle FAQ en accordéon ; nav avec ancres |
 | **UX produit** | OK : barre de progression des étapes (1–2–3), scroll fluide vers les ancres, scroll-margin sous la nav sticky |
+| **Templates sauvegardables** | OK : sauvegarder/charger un preset de rendu (police, effet, animation, position, couleur, etc.) — API + dropdown frontend |
+| **Système Remix** | OK : re-rendre la vidéo avec un preset différent ou aléatoire, sans re-détecter les paroles — bouton Remix + API |
+| **Cut-point effects (beats)** | OK : détection des beats via librosa, effets visuels synchronisés (flash, zoom, shake) dans le rendu FFmpeg + preview en temps réel |
+| **Crédits locaux** | OK : système de crédits localStorage — modal choix du plan (Découverte 10, Pro 50, Studio 200), badge nav, vérification avant export |
 
 ---
 
@@ -39,7 +43,9 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 |--------|--------|
 | **Thème clair/sombre** | Prévoir toggle ou préférence (variables CSS déjà prêtes côté sombre). |
 | **Logo / icône SaaS Visu** | À créer (style géométrique, cohérent avec la 1ʳᵉ partie du site). |
+| **Cover art / pochette** | Générateur de pochette — reporté pour l'instant. |
+| **Système de comptes + crédits serveur** | Crédits actuellement en localStorage ; migration vers comptes + BDD à prévoir. |
 
 ---
 
-*Dernière mise à jour : synchro Whisper intégrée (CLI `--whisper`, API `?use_whisper=true`).*
+*Dernière mise à jour : implémentation templates, remix, cut-point effects (beats), crédits locaux.*

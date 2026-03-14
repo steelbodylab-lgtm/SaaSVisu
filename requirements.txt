@@ -12,3 +12,5 @@ python-multipart>=0.0.6
 openai-whisper>=20231117
 # Azure Speech (optionnel, plan gratuit 5 h/mois)
 azure-cognitiveservices-speech>=1.31.0
+# Beat detection
+librosa>=0.10.0
