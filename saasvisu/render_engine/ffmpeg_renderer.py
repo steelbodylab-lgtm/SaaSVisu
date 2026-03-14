@@ -202,6 +202,36 @@ def _group_words_into_phrases(
     return phrases
 
 
+def _make_ass_header(
+    width: int, height: int, styles: list[str],
+) -> list[str]:
+    return [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {width}",
+        f"PlayResY: {height}",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        *styles,
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+
+
+def _common_style_params(
+    effect: dict[str, int] | None, height: int, position: str,
+) -> tuple[dict[str, int], int, int]:
+    eff = effect or EFFECTS["classique"]
+    alignment = _POS_TO_ALIGNMENT.get(position, 2)
+    if position in ("center", "drag"):
+        margin_v = 0
+    else:
+        margin_v = max(40, min(height // 8, 120))
+    return eff, alignment, margin_v
+
+
 def _segments_to_ass_phrase_accumulation(
     segments: list[dict[str, Any]],
     width: int,
@@ -211,38 +241,26 @@ def _segments_to_ass_phrase_accumulation(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str | None = None,
 ) -> str:
-    """
-    Génère l'ASS en mode "phrase qui se construit" : les mots s'ajoutent un par un
-    jusqu'à afficher la phrase complète, puis on passe à la phrase suivante (dans les temps).
-    """
+    """Mode accumulation : les mots s'ajoutent un par un dans la phrase."""
     phrases = _group_words_into_phrases(segments)
-    eff = effect or EFFECTS["classique"]
-    outline = eff.get("outline", 2)
-    shadow = eff.get("shadow", 1)
-    bold = eff.get("bold", 0)
-    italic = eff.get("italic", 0)
-    margin_v = max(40, min(height // 8, 120))
+    eff, alignment, margin_v = _common_style_params(effect, height, position)
     style_line = _effect_to_ass_style(
         font_name, font_size,
         primary_hex=primary_color.lstrip("#"),
         outline_hex=outline_color.lstrip("#"),
-        outline=outline, shadow=shadow, bold=bold, italic=italic, margin_v=margin_v,
+        outline=eff.get("outline", 2), shadow=eff.get("shadow", 1),
+        bold=eff.get("bold", 0), italic=eff.get("italic", 0),
+        margin_v=margin_v, alignment=alignment,
     )
-    header = [
-        "[Script Info]",
-        "ScriptType: v4.00+",
-        f"PlayResX: {width}",
-        f"PlayResY: {height}",
-        "",
-        "[V4+ Styles]",
-        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        style_line,
-        "",
-        "[Events]",
-        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
-    ]
-    lines = list(header)
+    need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
+    cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
+    override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    lines = _make_ass_header(width, height, [style_line])
     for phrase in phrases:
         if not phrase:
             continue
@@ -255,9 +273,128 @@ def _segments_to_ass_phrase_accumulation(
             text = " ".join((w.get("text") or "").strip() for w in phrase[: i + 1]).strip()
             if not text:
                 continue
-            start_s = _ms_to_ass_time(start_ms)
-            end_s = _ms_to_ass_time(end_ms)
-            lines.append(f"Dialogue: 0,{start_s},{end_s},Default,,0,0,0,,{text}")
+            lines.append(f"Dialogue: 0,{_ms_to_ass_time(start_ms)},{_ms_to_ass_time(end_ms)},Default,,0,0,0,,{override}{text}")
+    return "\n".join(lines)
+
+
+def _segments_to_ass_ligne(
+    segments: list[dict[str, Any]],
+    width: int,
+    height: int,
+    font_name: str = "Arial",
+    font_size: int = 48,
+    primary_color: str = "#FFFFFF",
+    outline_color: str = "#000000",
+    effect: dict[str, int] | None = None,
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str | None = None,
+) -> str:
+    """Mode ligne complète : toute la phrase, mot actif surligné en couleur accent."""
+    phrases = _group_words_into_phrases(segments)
+    eff, alignment, margin_v = _common_style_params(effect, height, position)
+    p_hex = primary_color.lstrip("#")[:6]
+    highlight_hex = "00FFFF"
+    style_line = _effect_to_ass_style(
+        font_name, font_size,
+        primary_hex=p_hex, outline_hex=outline_color.lstrip("#"),
+        outline=eff.get("outline", 2), shadow=eff.get("shadow", 1),
+        bold=eff.get("bold", 0), italic=eff.get("italic", 0),
+        margin_v=margin_v, alignment=alignment,
+    )
+    need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
+    cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
+    override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    hc_bgr = f"&H00{highlight_hex[4:6]}{highlight_hex[2:4]}{highlight_hex[0:2]}"
+    dim_alpha = "\\alpha&H90&"
+    lines = _make_ass_header(width, height, [style_line])
+    for phrase in phrases:
+        if not phrase:
+            continue
+        for i, word in enumerate(phrase):
+            start_ms = word.get("start_time_ms", 0)
+            if i + 1 < len(phrase):
+                end_ms = phrase[i + 1].get("start_time_ms", start_ms + 500)
+            else:
+                end_ms = word.get("end_time_ms", start_ms + 300)
+            parts = []
+            for j, w in enumerate(phrase):
+                wtxt = (w.get("text") or "").strip()
+                if j == i:
+                    parts.append("{\\1c" + hc_bgr + "\\b1}" + wtxt + "{\\r}")
+                else:
+                    parts.append("{" + dim_alpha + "}" + wtxt + "{\\r}")
+            text = " ".join(parts)
+            lines.append(f"Dialogue: 0,{_ms_to_ass_time(start_ms)},{_ms_to_ass_time(end_ms)},Default,,0,0,0,,{override}{text}")
+    return "\n".join(lines)
+
+
+def _segments_to_ass_scroll(
+    segments: list[dict[str, Any]],
+    width: int,
+    height: int,
+    font_name: str = "Arial",
+    font_size: int = 48,
+    primary_color: str = "#FFFFFF",
+    outline_color: str = "#000000",
+    effect: dict[str, int] | None = None,
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str | None = None,
+) -> str:
+    """Mode scroll : ligne active (mot surligné) + ligne suivante en semi-transparent."""
+    phrases = _group_words_into_phrases(segments)
+    eff, alignment, margin_v = _common_style_params(effect, height, position)
+    p_hex = primary_color.lstrip("#")[:6]
+    highlight_hex = "00FFFF"
+    next_margin_v = margin_v + font_size + 20
+    style_active = _effect_to_ass_style(
+        font_name, font_size,
+        primary_hex=p_hex, outline_hex=outline_color.lstrip("#"),
+        outline=eff.get("outline", 2), shadow=eff.get("shadow", 1),
+        bold=eff.get("bold", 0), italic=eff.get("italic", 0),
+        margin_v=margin_v, alignment=alignment,
+    ).replace("Style: Default,", "Style: Active,")
+    smaller = max(16, int(font_size * 0.8))
+    style_next = _effect_to_ass_style(
+        font_name, smaller,
+        primary_hex=p_hex, outline_hex=outline_color.lstrip("#"),
+        outline=max(0, eff.get("outline", 2) - 1), shadow=eff.get("shadow", 1),
+        bold=0, italic=0,
+        margin_v=next_margin_v, alignment=alignment,
+    ).replace("Style: Default,", "Style: Next,")
+    need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
+    cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
+    override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    hc_bgr = f"&H00{highlight_hex[4:6]}{highlight_hex[2:4]}{highlight_hex[0:2]}"
+    dim_alpha = "\\alpha&H90&"
+    lines = _make_ass_header(width, height, [style_active, style_next])
+    for pi, phrase in enumerate(phrases):
+        if not phrase:
+            continue
+        for i, word in enumerate(phrase):
+            start_ms = word.get("start_time_ms", 0)
+            if i + 1 < len(phrase):
+                end_ms = phrase[i + 1].get("start_time_ms", start_ms + 500)
+            else:
+                end_ms = word.get("end_time_ms", start_ms + 300)
+            parts = []
+            for j, w in enumerate(phrase):
+                wtxt = (w.get("text") or "").strip()
+                if j == i:
+                    parts.append("{\\1c" + hc_bgr + "\\b1}" + wtxt + "{\\r}")
+                else:
+                    parts.append("{" + dim_alpha + "}" + wtxt + "{\\r}")
+            text = " ".join(parts)
+            lines.append(f"Dialogue: 0,{_ms_to_ass_time(start_ms)},{_ms_to_ass_time(end_ms)},Active,,0,0,0,,{override}{text}")
+        phrase_start = phrase[0].get("start_time_ms", 0)
+        phrase_end = phrase[-1].get("end_time_ms", 0)
+        if pi + 1 < len(phrases):
+            next_phrase = phrases[pi + 1]
+            next_text = " ".join((w.get("text") or "").strip() for w in next_phrase)
+            lines.append(f"Dialogue: 0,{_ms_to_ass_time(phrase_start)},{_ms_to_ass_time(phrase_end)},Next,,0,0,0,,{{\\alpha&H60&}}{next_text}")
     return "\n".join(lines)
 
 
@@ -365,6 +502,7 @@ def render_lyric_video(
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
     lyric_animation: str | None = None,
+    display_mode: str = "mot",
 ) -> Path:
     """
     Génère la vidéo MP4 (visualizer).
@@ -405,16 +543,23 @@ def render_lyric_video(
     effect_key = (text_effect or "classique").strip() or "classique"
     effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
 
-    ass_content = _segments_to_ass(
-        segments, w, h,
+    _ass_common = dict(
+        segments=segments, width=w, height=h,
         font_name=font, font_size=size,
         primary_color=primary_color, outline_color=outline_hex,
         effect=effect_dict,
         position=position or "bottom",
-        pos_x_pct=pos_x_pct,
-        pos_y_pct=pos_y_pct,
+        pos_x_pct=pos_x_pct, pos_y_pct=pos_y_pct,
         lyric_animation=lyric_animation,
     )
+    if display_mode == "accumulation":
+        ass_content = _segments_to_ass_phrase_accumulation(**_ass_common)
+    elif display_mode == "ligne":
+        ass_content = _segments_to_ass_ligne(**_ass_common)
+    elif display_mode == "scroll":
+        ass_content = _segments_to_ass_scroll(**_ass_common)
+    else:
+        ass_content = _segments_to_ass(**_ass_common)
     ass_path = output_path.parent / (output_path.stem + "_subs.ass")
     ass_path.write_text(ass_content, encoding="utf-8")
 

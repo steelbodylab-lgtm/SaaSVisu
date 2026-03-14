@@ -236,9 +236,20 @@
                 </div>
               </label>
             </div>
+            <div class="ctrl-group">
+              <label><span class="label-text">Affichage paroles</span>
+                <div class="format-pills">
+                  <button type="button" class="pill pill-active" data-display="mot">Mot par mot</button>
+                  <button type="button" class="pill" data-display="accumulation">Accumulation</button>
+                  <button type="button" class="pill" data-display="ligne">Ligne complète</button>
+                  <button type="button" class="pill" data-display="scroll">2 lignes</button>
+                </div>
+              </label>
+            </div>
             <input type="hidden" id="select-ratio" value="16:9">
             <input type="hidden" id="select-resolution" value="720p">
             <input type="hidden" id="select-position" value="center">
+            <input type="hidden" id="select-display" value="mot">
           </div>
           <div id="preview-area" class="preview-area hidden">
             <div class="preview-stage" id="preview-stage">

@@ -419,8 +419,9 @@ def run_render(
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
     lyric_animation: str = "",
+    display_mode: str = "mot",
 ):
-    """Lance le rendu vidéo (FFmpeg). Supporte position, animation et coordonnées drag."""
+    """Lance le rendu vidéo (FFmpeg). Supporte position, animation, display_mode et coordonnées drag."""
     from saasvisu.render_engine import render_lyric_video
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
@@ -452,6 +453,7 @@ def run_render(
             pos_x_pct=pos_x_pct,
             pos_y_pct=pos_y_pct,
             lyric_animation=(lyric_animation and lyric_animation.strip()) or None,
+            display_mode=(display_mode and display_mode.strip()) or "mot",
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))

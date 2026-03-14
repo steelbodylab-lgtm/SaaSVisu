@@ -2,6 +2,28 @@
   var API = "";
   var projectId = null;
   var currentSegments = null;
+  var currentPhrases = [];
+  var displayMode = "mot";
+  var PHRASE_GAP_MS = 550;
+
+  function groupIntoPhrases(segments) {
+    if (!segments || !segments.length) return [];
+    var phrases = [];
+    var cur = [{ seg: segments[0], idx: 0 }];
+    for (var i = 1; i < segments.length; i++) {
+      var prevEnd = segments[i - 1].end_time_ms || 0;
+      var currStart = segments[i].start_time_ms || 0;
+      if (currStart - prevEnd >= PHRASE_GAP_MS) {
+        phrases.push(cur);
+        cur = [{ seg: segments[i], idx: i }];
+      } else {
+        cur.push({ seg: segments[i], idx: i });
+      }
+    }
+    if (cur.length) phrases.push(cur);
+    return phrases;
+  }
+
   /* ======== AUDIO-REACTIVE : Web Audio API ======== */
   var audioCtx = null;
   var analyser = null;
@@ -369,6 +391,10 @@
             document.getElementById("select-position").value = pill.dataset.pos;
             if (pill.dataset.pos === "drag") enableDragMode(); else disableDragMode();
           }
+          if (pill.dataset.display) {
+            displayMode = pill.dataset.display;
+            document.getElementById("select-display").value = pill.dataset.display;
+          }
           setPreviewStageRatio();
           updatePreviewOverlay();
         });
@@ -565,26 +591,92 @@
     };
   }
 
+  function _getWordText(segIdx) {
+    var w = document.querySelector('#lyrics-words .word-box-wrap[data-segment-index="' + segIdx + '"]');
+    var box = w && w.querySelector(".word-box");
+    return (box ? box.textContent : "").trim() || (currentSegments[segIdx] && currentSegments[segIdx].text) || "";
+  }
+
+  function _findActiveSegIdx(tMs) {
+    for (var i = 0; i < currentSegments.length; i++) {
+      if (tMs >= (currentSegments[i].start_time_ms || 0) && tMs < (currentSegments[i].end_time_ms || 0)) return i;
+    }
+    return -1;
+  }
+
+  function _findPhraseForIdx(segIdx) {
+    for (var p = 0; p < currentPhrases.length; p++) {
+      for (var w = 0; w < currentPhrases[p].length; w++) {
+        if (currentPhrases[p][w].idx === segIdx) return { phraseIdx: p, wordIdx: w };
+      }
+    }
+    return null;
+  }
+
+  function _buildPhraseHtml(phrase, activeSegIdx) {
+    var parts = [];
+    for (var i = 0; i < phrase.length; i++) {
+      var word = phrase[i];
+      var txt = escapeHtml(_getWordText(word.idx));
+      var cls = "lyric-w";
+      if (word.idx === activeSegIdx) cls += " w-active";
+      else if (word.idx < activeSegIdx) cls += " w-past";
+      else cls += " w-future";
+      parts.push('<span class="' + cls + '">' + txt + '</span>');
+    }
+    return parts.join(" ");
+  }
+
   function updatePreviewOverlay() {
     var ov = document.getElementById("preview-overlay");
     var audio = document.getElementById("preview-audio");
     if (!ov || !audio || !currentSegments || !currentSegments.length) return;
     var tMs = (audio.currentTime || 0) * 1000;
-    var idx = -1;
-    for (var i = 0; i < currentSegments.length; i++) {
-      if (tMs >= (currentSegments[i].start_time_ms || 0) && tMs < (currentSegments[i].end_time_ms || 0)) { idx = i; break; }
-    }
-    var text = "";
+    var idx = _findActiveSegIdx(tMs);
+
     document.querySelectorAll("#lyrics-words .word-box-wrap").forEach(function (w) { w.classList.remove("current-word"); });
-    var hasWord = false;
     if (idx >= 0) {
-      var w = document.querySelector('#lyrics-words .word-box-wrap[data-segment-index="' + idx + '"]');
-      if (w) w.classList.add("current-word");
-      var box = w && w.querySelector(".word-box");
-      text = (box ? box.textContent : "").trim() || currentSegments[idx].text || "";
-      if (text) hasWord = true;
+      var wEl = document.querySelector('#lyrics-words .word-box-wrap[data-segment-index="' + idx + '"]');
+      if (wEl) wEl.classList.add("current-word");
     }
-    ov.textContent = text;
+
+    var hasWord = idx >= 0;
+    var html = "";
+
+    if (displayMode === "mot" || !currentPhrases.length) {
+      html = hasWord ? escapeHtml(_getWordText(idx)) : "";
+    } else {
+      var loc = hasWord ? _findPhraseForIdx(idx) : null;
+      if (!loc) {
+        html = "";
+      } else {
+        var phrase = currentPhrases[loc.phraseIdx];
+        if (displayMode === "accumulation") {
+          var parts = [];
+          for (var i = 0; i <= loc.wordIdx; i++) {
+            var w = phrase[i];
+            var txt = escapeHtml(_getWordText(w.idx));
+            var cls = (i === loc.wordIdx) ? "lyric-w w-active" : "lyric-w w-past";
+            parts.push('<span class="' + cls + '">' + txt + '</span>');
+          }
+          html = parts.join(" ");
+        } else if (displayMode === "ligne") {
+          html = _buildPhraseHtml(phrase, idx);
+        } else if (displayMode === "scroll") {
+          html = _buildPhraseHtml(phrase, idx);
+          if (loc.phraseIdx + 1 < currentPhrases.length) {
+            var nextPhrase = currentPhrases[loc.phraseIdx + 1];
+            var nextParts = [];
+            for (var j = 0; j < nextPhrase.length; j++) {
+              nextParts.push('<span class="lyric-w w-future">' + escapeHtml(_getWordText(nextPhrase[j].idx)) + '</span>');
+            }
+            html += '<span class="lyric-next">' + nextParts.join(" ") + '</span>';
+          }
+        }
+      }
+    }
+
+    ov.innerHTML = html;
     var st = getPreviewStyle();
     ov.style.fontFamily = st.font;
     ov.style.fontSize = st.size + "px";
@@ -734,6 +826,7 @@
         var wc = document.getElementById("lyrics-words");
         if (data.segments && data.segments.length && wc) {
           currentSegments = data.segments;
+          currentPhrases = groupIntoPhrases(currentSegments);
           wc.innerHTML = data.segments.map(function (w, i) {
             return '<span class="word-box-wrap" data-segment-index="' + i + '"><span class="word-box" contenteditable="true" spellcheck="false">' + escapeHtml(w.text || "") + '</span></span>';
           }).join(" ");
@@ -784,6 +877,7 @@
         if (selectedLyricAnim) {
           params.set("lyric_animation", selectedLyricAnim.cls.replace("lyric-anim-", ""));
         }
+        params.set("display_mode", displayMode || "mot");
         var r2 = await fetch(API + "/projects/" + id + "/render?" + params.toString(), { method: "POST" });
         var t = await r2.text(); var d2 = {}; try { d2 = JSON.parse(t); } catch (_) {}
         if (!r2.ok) throw new Error(d2.detail || d2.message || t || "Erreur serveur");
