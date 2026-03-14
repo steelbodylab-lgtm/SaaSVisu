@@ -2,8 +2,6 @@
   var API = "";
   var projectId = null;
   var currentSegments = null;
-  var PHRASE_PAUSE_MS = 650;
-
   /* ======== AUDIO-REACTIVE : Web Audio API ======== */
   var audioCtx = null;
   var analyser = null;
@@ -208,10 +206,6 @@
     "Un flow visuel unique",
     "Ta voix en mouvement"
   ];
-
-  function getCurrentCarouselAnim() {
-    return selectedLyricAnim;
-  }
 
   function initAnimCarousel() {
     var textEl = document.getElementById("anim-demo-text");
@@ -774,6 +768,22 @@
         var fontSize = (se && se.value) ? parseInt(se.value, 10) : 48;
         var params = new URLSearchParams({ template: "minimal_16x9", ratio: ratio, resolution: resolution, font: font, effect: effect, font_size: String(fontSize) });
         if (color) params.set("text_color", color.replace(/^#/, ""));
+        var posEl = document.getElementById("select-position");
+        var position = (posEl && posEl.value) || "center";
+        params.set("position", position);
+        if (position === "drag") {
+          var ovEl = document.getElementById("preview-overlay");
+          var stageEl = document.getElementById("preview-stage");
+          if (ovEl && stageEl) {
+            var sr = stageEl.getBoundingClientRect();
+            var ovr = ovEl.getBoundingClientRect();
+            params.set("pos_x_pct", ((ovr.left + ovr.width / 2 - sr.left) / sr.width * 100).toFixed(1));
+            params.set("pos_y_pct", ((ovr.top + ovr.height / 2 - sr.top) / sr.height * 100).toFixed(1));
+          }
+        }
+        if (selectedLyricAnim) {
+          params.set("lyric_animation", selectedLyricAnim.cls.replace("lyric-anim-", ""));
+        }
         var r2 = await fetch(API + "/projects/" + id + "/render?" + params.toString(), { method: "POST" });
         var t = await r2.text(); var d2 = {}; try { d2 = JSON.parse(t); } catch (_) {}
         if (!r2.ok) throw new Error(d2.detail || d2.message || t || "Erreur serveur");

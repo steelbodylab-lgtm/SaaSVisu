@@ -37,7 +37,7 @@ body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;backgrou
 
 /* ===== PAGE ===== */
 .page{position:relative;z-index:1;max-width:780px;margin:0 auto;padding:0 1.25rem 4rem}
-#accueil,#app,#tarifs,#faq{scroll-margin-top:4rem}
+#accueil,#app,#tarifs,#pourquoi{scroll-margin-top:4rem}
 .badge{text-align:center;font-size:.78rem;color:var(--text-muted);margin:0 0 .5rem}
 
 /* ===== HERO ===== */
@@ -235,7 +235,7 @@ input[type="number"]{padding:.32rem .45rem;background:var(--bg);border:1px solid
 .tarif-amount{font-size:1.5rem;font-weight:700;color:var(--text)}
 .tarif-features{list-style:none;padding:0;margin:0 0 1rem;font-size:.82rem;color:var(--text);flex:1}
 .tarif-features li{padding:.2rem 0 .2rem 1rem;position:relative}
-.tarif-features li::before{content:"?";position:absolute;left:0;color:var(--success);font-weight:700}
+.tarif-features li::before{content:"\2713";position:absolute;left:0;color:var(--success);font-weight:700}
 .tarif-btn{margin-top:auto;text-align:center}
 
 /* ===== POURQUOI NOUS ===== */

@@ -61,6 +61,77 @@ EFFECTS = {
 }
 
 
+_POS_TO_ALIGNMENT = {
+    "bottom": 2,
+    "center": 5,
+    "top": 8,
+    "drag": 5,
+}
+
+_MOVE_ANIMS = {"slideUp", "slideDown", "dropIn"}
+
+
+def _compute_anchor_xy(
+    alignment: int, width: int, height: int, margin_v: int, font_size: int,
+    pos_x_pct: float | None = None, pos_y_pct: float | None = None,
+) -> tuple[int, int]:
+    if pos_x_pct is not None and pos_y_pct is not None:
+        return (int(pos_x_pct * width / 100), int(pos_y_pct * height / 100))
+    cx = width // 2
+    if alignment in (7, 8, 9):
+        cy = margin_v + font_size // 2
+    elif alignment in (4, 5, 6):
+        cy = height // 2
+    else:
+        cy = height - margin_v - font_size // 2
+    return (cx, cy)
+
+
+def _build_override_tags(
+    anim_key: str | None, cx: int, cy: int, need_pos: bool,
+) -> str:
+    """Tags ASS d'animation et/ou de position explicite."""
+    parts: list[str] = []
+    is_move = anim_key in _MOVE_ANIMS if anim_key else False
+    if need_pos and not is_move:
+        parts.append(f"\\an5\\pos({cx},{cy})")
+    off = 60
+    big_off = 200
+    if anim_key == "fadeIn":
+        parts.append("\\fad(300,0)")
+    elif anim_key == "slideUp":
+        parts.append(f"\\an5\\move({cx},{cy + off},{cx},{cy},0,350)\\fad(200,0)")
+    elif anim_key == "slideDown":
+        parts.append(f"\\an5\\move({cx},{cy - off},{cx},{cy},0,350)\\fad(200,0)")
+    elif anim_key == "scaleIn":
+        parts.append("\\fscx20\\fscy20\\t(0,350,\\fscx100\\fscy100)\\fad(150,0)")
+    elif anim_key == "bounceIn":
+        parts.append("\\fscx0\\fscy0\\t(0,200,\\fscx120\\fscy120)\\t(200,350,\\fscx100\\fscy100)\\fad(100,0)")
+    elif anim_key == "glitch":
+        parts.append("\\fad(80,0)\\shad3\\t(0,150,\\shad0)")
+    elif anim_key == "blurReveal":
+        parts.append("\\blur15\\fscx130\\fscy130\\t(0,400,\\blur0\\fscx100\\fscy100)\\fad(200,0)")
+    elif anim_key == "flipIn":
+        parts.append("\\fscy0\\fad(100,0)\\t(0,350,\\fscy100)")
+    elif anim_key == "neonPulse":
+        parts.append("\\bord5\\blur3\\fad(200,0)\\t(0,350,\\bord2\\blur1)\\t(350,700,\\bord4\\blur2)")
+    elif anim_key == "dropIn":
+        parts.append(f"\\an5\\move({cx},{max(0, cy - big_off)},{cx},{cy},0,400)\\fad(100,0)")
+    elif anim_key == "zoomBlur":
+        parts.append("\\fscx250\\fscy250\\blur12\\t(0,400,\\fscx100\\fscy100\\blur0)\\fad(80,0)")
+    elif anim_key == "typewriter":
+        parts.append("\\fad(50,0)")
+    elif anim_key == "waveIn":
+        parts.append("\\frz(-5)\\fad(250,0)\\t(0,450,\\frz0)")
+    elif anim_key == "splitReveal":
+        parts.append("\\fscx0\\fad(100,0)\\t(0,350,\\fscx100)")
+    elif anim_key == "spinIn":
+        parts.append("\\frz(-180)\\fscx0\\fscy0\\fad(80,0)\\t(0,400,\\frz0\\fscx100\\fscy100)")
+    if not parts:
+        return ""
+    return "{" + "".join(parts) + "}"
+
+
 def _effect_to_ass_style(
     font_name: str,
     font_size: int,
@@ -71,13 +142,14 @@ def _effect_to_ass_style(
     bold: int = 0,
     italic: int = 0,
     margin_v: int = 80,
+    alignment: int = 2,
 ) -> str:
-    """Construit une ligne Style ASS : centré en bas, une seule ligne à la fois."""
+    """Construit une ligne Style ASS."""
     p = primary_hex.lstrip("#")[:6]
     pc = f"&H00{p[4:6]}{p[2:4]}{p[0:2]}"
     oc = outline_hex.lstrip("#")[:6]
     ochex = f"&H00{oc[4:6]}{oc[2:4]}{oc[0:2]}"
-    return f"Style: Default,{font_name},{font_size},{pc},{ochex},&H80000000,{bold},{italic},1,{outline},{shadow},2,10,10,{margin_v},1"
+    return f"Style: Default,{font_name},{font_size},{pc},{ochex},&H80000000,{bold},{italic},1,{outline},{shadow},{alignment},10,10,{margin_v},1"
 
 
 def _normalize_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -198,21 +270,38 @@ def _segments_to_ass(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str | None = None,
 ) -> str:
-    """Génère le contenu ASS : un mot à la fois, centré, aux timestamps de la reconnaissance (mot affiché quand il est dit)."""
+    """Génère le contenu ASS : un mot à la fois, avec position et animation configurables."""
     normalized = _normalize_segments(segments)
     eff = effect or EFFECTS["classique"]
     outline = eff.get("outline", 2)
     shadow = eff.get("shadow", 1)
     bold = eff.get("bold", 0)
     italic = eff.get("italic", 0)
-    margin_v = max(40, min(height // 8, 120))
+    alignment = _POS_TO_ALIGNMENT.get(position, 2)
+    if position == "center":
+        margin_v = 0
+    elif position == "drag":
+        margin_v = 0
+    else:
+        margin_v = max(40, min(height // 8, 120))
     style_line = _effect_to_ass_style(
         font_name, font_size,
         primary_hex=primary_color.lstrip("#"),
         outline_hex=outline_color.lstrip("#"),
-        outline=outline, shadow=shadow, bold=bold, italic=italic, margin_v=margin_v,
+        outline=outline, shadow=shadow, bold=bold, italic=italic,
+        margin_v=margin_v, alignment=alignment,
     )
+    need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
+    cx, cy = _compute_anchor_xy(
+        alignment, width, height, margin_v, font_size,
+        pos_x_pct=pos_x_pct, pos_y_pct=pos_y_pct,
+    )
+    override = _build_override_tags(lyric_animation, cx, cy, need_pos)
     lines = [
         "[Script Info]",
         "ScriptType: v4.00+",
@@ -234,8 +323,7 @@ def _segments_to_ass(
             continue
         start_s = _ms_to_ass_time(start_ms)
         end_s = _ms_to_ass_time(end_ms)
-        # Dialogue: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-        lines.append(f"Dialogue: 0,{start_s},{end_s},Default,,0,0,0,,{text}")
+        lines.append(f"Dialogue: 0,{start_s},{end_s},Default,,0,0,0,,{override}{text}")
     return "\n".join(lines)
 
 
@@ -273,6 +361,10 @@ def render_lyric_video(
     text_effect: str | None = None,
     text_color: str | None = None,
     outline_color: str | None = None,
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str | None = None,
 ) -> Path:
     """
     Génère la vidéo MP4 (visualizer).
@@ -313,12 +405,15 @@ def render_lyric_video(
     effect_key = (text_effect or "classique").strip() or "classique"
     effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
 
-    # Affichage MOT PAR MOT : un mot à la fois, aux timestamps exacts (synchro avec la chanson).
     ass_content = _segments_to_ass(
         segments, w, h,
         font_name=font, font_size=size,
         primary_color=primary_color, outline_color=outline_hex,
         effect=effect_dict,
+        position=position or "bottom",
+        pos_x_pct=pos_x_pct,
+        pos_y_pct=pos_y_pct,
+        lyric_animation=lyric_animation,
     )
     ass_path = output_path.parent / (output_path.stem + "_subs.ass")
     ass_path.write_text(ass_content, encoding="utf-8")

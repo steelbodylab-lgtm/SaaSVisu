@@ -415,8 +415,12 @@ def run_render(
     font_size: int = 0,
     effect: str = "",
     text_color: str = "",
+    position: str = "bottom",
+    pos_x_pct: float | None = None,
+    pos_y_pct: float | None = None,
+    lyric_animation: str = "",
 ):
-    """Lance le rendu vidéo (FFmpeg). text_color au format hex (#FFFFFF ou FFFFFF)."""
+    """Lance le rendu vidéo (FFmpeg). Supporte position, animation et coordonnées drag."""
     from saasvisu.render_engine import render_lyric_video
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
@@ -429,7 +433,6 @@ def run_render(
     if not sync_path.exists():
         raise HTTPException(status_code=400, detail="Synchronisation non effectuée")
     out_path = project_path / "output.mp4"
-    # Fond optionnel : photo ou vidéo uploadée dans le projet
     background_path = None
     for ext in BACKGROUND_EXT:
         candidate = project_path / f"background{ext}"
@@ -445,6 +448,10 @@ def run_render(
             font_size=font_size or None,
             text_effect=(effect and effect.strip()) or "classique",
             text_color=text_color or None,
+            position=(position and position.strip()) or "bottom",
+            pos_x_pct=pos_x_pct,
+            pos_y_pct=pos_y_pct,
+            lyric_animation=(lyric_animation and lyric_animation.strip()) or None,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
