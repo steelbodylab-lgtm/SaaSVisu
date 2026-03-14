@@ -34,6 +34,14 @@ Index de la documentation du projet. Tout est rédigé en **français**.
 
 ---
 
+## Branding et identité
+
+| Fichier | Rôle |
+|--------|------|
+| [BRANDING.md](BRANDING.md) | Brief branding SaaS Visu (2ᵉ partie du site), palette violet/nocturne, écrans clés |
+
+---
+
 ## Structure du code
 
 - **`saasvisu/`** — Package Python : CLI, API web, moteur de sync, rendu vidéo, templates.

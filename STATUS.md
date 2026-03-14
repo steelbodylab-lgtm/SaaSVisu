@@ -25,6 +25,11 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 | **Détection auto des paroles** | OK : bouton « Détecter les paroles automatiquement » (Whisper, mot par mot) |
 | **Affichage mot par mot + effets** | OK : texte synchronisé au chant, choix de police et effet (contour, ombre, gras, etc.) |
 | **Fond adapté au format** | OK : image/vidéo de fond recadrée pour remplir le format choisi (16:9, 9:16, 1:1) |
+| **Interface web statique** | OK : `static/` (index.html, app.js, style.css) — upload, extrait audio, détection paroles, preview, export |
+| **Prévisualisation des effets texte** | OK : overlay preview avec classes CSS (néon, outline, ombre, etc.) |
+| **Branding (2ᵉ partie du site)** | En cours : nom « SaaS Visu », baseline « Ton monteur de visualizers intelligent », palette violet/nocturne, doc [docs/BRANDING.md](docs/BRANDING.md) |
+| **Landing promo + Tarifs + FAQ** | OK : section Accueil (promo, bénéfices, CTA), bulle Tarifs (Découverte / Pro / Studio), bulle FAQ en accordéon ; nav avec ancres |
+| **UX produit** | OK : barre de progression des étapes (1–2–3), scroll fluide vers les ancres, scroll-margin sous la nav sticky |
 
 ---
 
@@ -32,7 +37,8 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 
 | Manque | Détail |
 |--------|--------|
-| **Interface web (React)** | Tout se fait via l’API /docs ou le CLI ; pas encore d’UI dédiée. |
+| **Thème clair/sombre** | Prévoir toggle ou préférence (variables CSS déjà prêtes côté sombre). |
+| **Logo / icône SaaS Visu** | À créer (style géométrique, cohérent avec la 1ʳᵉ partie du site). |
 
 ---
 
