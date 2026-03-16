@@ -355,6 +355,9 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
                 lyrics_text_to_word_segments,
                 _local_available,
             )
+            from saasvisu.sync_engine.aligner import align_heartmula_on_whisper
+
+            # 1) HeartMuLa → texte propre
             if use_heartmula_local:
                 if not _local_available():
                     raise HTTPException(
@@ -374,11 +377,11 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
                 th = threading.Thread(target=run_local)
                 th.daemon = True
                 th.start()
-                th.join(timeout=900)  # 15 min max (premier run = téléchargement modèle ~1 Go)
+                th.join(timeout=900)
                 if th.is_alive():
                     raise HTTPException(
                         status_code=504,
-                        detail="Détection HeartMuLa (local) trop longue (timeout 15 min). Premier lancement ? Le modèle se télécharge (~1 Go) — réessaie dans quelques minutes. Sinon, utilise un extrait audio plus court ou Whisper.",
+                        detail="Détection HeartMuLa (local) trop longue (timeout 15 min).",
                     )
                 if exc_holder:
                     raise exc_holder[0]
@@ -386,8 +389,30 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
             else:
                 api_key = os.environ["WAVESPEED_API_KEY"].strip()
                 lyrics_text = transcribe_lyrics(audio_file, api_key)
-            duration_sec = get_duration_seconds(audio_file)
-            segments = lyrics_text_to_word_segments(lyrics_text, duration_sec)
+
+            # 2) Timestamps mot par mot (faster-whisper = 4x plus rapide)
+            print(f"[analyze] HeartMuLa texte OK ({len(lyrics_text.split())} mots).", flush=True)
+            from saasvisu.sync_engine.faster_whisper_timestamps import (
+                extract_word_timestamps,
+                is_available as fw_available,
+            )
+            if fw_available():
+                print("[analyze] Extraction timestamps via faster-whisper…", flush=True)
+                ts_segs = extract_word_timestamps(audio_file, model_name="large-v3", language="fr")
+            else:
+                from saasvisu.sync_engine.whisper_adapter import transcribe_to_words
+                print("[analyze] faster-whisper indisponible, fallback Whisper classique…", flush=True)
+                ts_segs = transcribe_to_words(audio_file, model_name="large-v3", language="fr")
+            print(f"[analyze] {len(ts_segs)} mots timestampés.", flush=True)
+
+            # 3) Alignement : texte HeartMuLa + timestamps précis
+            if ts_segs:
+                segments = align_heartmula_on_whisper(lyrics_text, ts_segs)
+            else:
+                duration_sec = get_duration_seconds(audio_file)
+                segments = lyrics_text_to_word_segments(lyrics_text, duration_sec)
+                print("[analyze] Pas de timestamps, fallback répartition uniforme.", flush=True)
+
         elif use_azure:
             from saasvisu.sync_engine.azure_speech_adapter import transcribe_to_words as azure_transcribe
             key = os.environ["AZURE_SPEECH_KEY"]
@@ -399,6 +424,9 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
             from saasvisu.sync_engine.whisper_adapter import transcribe_to_words
             segments = transcribe_to_words(audio_file, model_name=whisper_model, language="fr")
     except Exception as e:
+        import traceback
+        print(f"[analyze] Erreur: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
         raise HTTPException(status_code=500, detail=f"Analyse a échoué : {e}")
     if not segments:
         raise HTTPException(status_code=400, detail="Aucune parole détectée dans l'audio.")
@@ -410,11 +438,19 @@ def run_analyze(project_id: str, whisper_model: str = "base", engine: str = "", 
     import json
     lines_for_json = [{"id": str(i), "text": s.get("text", "")} for i, s in enumerate(segments)]
     (project_path / "lyrics.json").write_text(json.dumps(lines_for_json, ensure_ascii=False, indent=2), encoding="utf-8")
+    engine_label = "whisper"
+    engine_msg = "Paroles détectées automatiquement (Whisper)."
+    if use_heartmula:
+        engine_label = "heartmula"
+        engine_msg = "Paroles détectées par HeartMuLa — calage audio précis."
+    elif use_azure:
+        engine_label = "azure"
+        engine_msg = "Paroles détectées automatiquement (Azure Speech)."
     return {
         "ok": True,
         "words_count": len(segments),
-        "message": "Paroles détectées automatiquement (mot par mot).",
-        "engine": "heartmula" if use_heartmula else ("azure" if use_azure else "whisper"),
+        "message": engine_msg,
+        "engine": engine_label,
         "text": full_text,
         "segments": [{"text": s.get("text", ""), "start_time_ms": s.get("start_time_ms", 0), "end_time_ms": s.get("end_time_ms", 0)} for s in segments],
     }

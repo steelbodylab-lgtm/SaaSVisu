@@ -210,7 +210,20 @@
             <span class="step-dot active"></span>
           </div>
           <h2 class="fullstep-title">3 · Rendu interactif</h2>
-          <p class="fullstep-sub">Choisis ton animation, tes effets, place tes paroles et exporte en MP4.</p>
+          <p class="fullstep-sub">Vue studio : extrait, captions et rendu visuel synchronisés.</p>
+
+          <div class="studio-timeline">
+            <div class="studio-timeline-top">
+              <div class="studio-selected">
+                <span class="studio-selected-label" id="studio-selected-range">Extrait : piste complète</span>
+                <span class="studio-selected-hint">Basé sur l'extrait audio appliqué à l'étape 1.</span>
+              </div>
+            </div>
+            <div class="studio-wave">
+              <div class="studio-wave-bg"></div>
+              <div class="studio-wave-window" id="studio-wave-window"></div>
+            </div>
+          </div>
 
           <!-- CAROUSEL ANIMATIONS LYRICS -->
           <div class="anim-carousel" id="anim-carousel">
@@ -296,6 +309,28 @@
               <button type="button" class="btn btn-sm btn-secondary" id="btn-save-preset">Sauvegarder ce style</button>
             </div>
           </div>
+
+          <div class="captions-panel">
+            <div class="captions-header">
+              <h3 class="captions-title">Captions</h3>
+              <p class="captions-sub">Aperçu des paroles synchronisées pour l'extrait sélectionné.</p>
+            </div>
+            <div class="captions-table-wrap">
+              <table class="captions-table" id="captions-table">
+                <thead>
+                  <tr>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Lyrics</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- rempli par JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div id="preview-area" class="preview-area hidden">
             <div class="preview-stage" id="preview-stage">
               <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">

@@ -8,6 +8,7 @@
   var currentBeats = [];
   var beatEffect = "none";
   var lastBeatIdx = -1;
+  var excerptInfo = { start: 0, duration: 20 };
 
   function groupIntoPhrases(segments) {
     if (!segments || !segments.length) return [];
@@ -502,6 +503,10 @@
     var start = parseFloat(document.getElementById("excerpt-start").value) || 0;
     var dur = parseFloat(document.getElementById("excerpt-duration").value) || 20;
     if (dur <= 0 || dur > 120) dur = 20;
+    excerptInfo.start = start;
+    excerptInfo.duration = dur;
+    updateStudioSelectedLabel();
+    updateStudioWaveWindow();
     setStatus("excerpt-status", "Application…");
     try {
       var r = await fetch(API + "/projects/" + id + "/audio/segment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start_seconds: start, duration_seconds: dur }) });
@@ -760,6 +765,9 @@
       updatePreviewOverlay();
     };
 
+    // Met à jour la fenêtre sur la mini-waveform studio si présente
+    updateStudioWaveWindow();
+
     fetch(API + "/projects/" + projectId + "/project-info").then(function (r) { return r.json(); }).then(function (info) {
       if (info.background_type) {
         var url = API + "/projects/" + projectId + "/background";
@@ -889,6 +897,63 @@
         return;
       }
     }
+  }
+
+  /* ======== CAPTIONS + TIMELINE (étape 3) ======== */
+  function _formatTime(ms) {
+    var total = Math.max(0, Math.round(ms / 1000));
+    var m = Math.floor(total / 60);
+    var s = total % 60;
+    return m + ":" + (s < 10 ? "0" + s : s);
+  }
+
+  function refreshCaptionsTable() {
+    var tbody = document.querySelector("#captions-table tbody");
+    if (!tbody) return;
+    if (!currentSegments || !currentSegments.length) {
+      tbody.innerHTML = "";
+      return;
+    }
+    var html = "";
+    for (var i = 0; i < currentSegments.length; i++) {
+      var seg = currentSegments[i] || {};
+      var startMs = seg.start_time_ms || 0;
+      var endMs = seg.end_time_ms || seg.end_time || startMs;
+      html += "<tr><td>" + _formatTime(startMs) + "</td><td>" + _formatTime(endMs) + "</td><td>" + escapeHtml(seg.text || "") + "</td></tr>";
+    }
+    tbody.innerHTML = html;
+  }
+
+  function updateStudioSelectedLabel() {
+    var el = document.getElementById("studio-selected-range");
+    if (!el) return;
+    if (!excerptInfo || !excerptInfo.duration) {
+      el.textContent = "Extrait : piste complète";
+      return;
+    }
+    var start = excerptInfo.start || 0;
+    var end = start + excerptInfo.duration;
+    el.textContent = "Extrait : " + _formatTime(start * 1000) + " – " + _formatTime(end * 1000);
+  }
+
+  function updateStudioWaveWindow() {
+    var win = document.getElementById("studio-wave-window");
+    if (!win) return;
+    var start = excerptInfo.start || 0;
+    var dur = excerptInfo.duration || 0;
+    if (!dur) {
+      win.style.left = "8%";
+      win.style.right = "8%";
+      return;
+    }
+    // On suppose que l'extrait fait partie d'une piste ~60s pour un visuel équilibré
+    var approxTotal = 60;
+    var ratioStart = Math.min(1, Math.max(0, start / approxTotal));
+    var ratioEnd = Math.min(1, Math.max(ratioStart + dur / approxTotal, ratioStart + 0.05));
+    var left = 5 + ratioStart * 80;
+    var right = 95 - ratioEnd * 80;
+    win.style.left = left.toFixed(1) + "%";
+    win.style.right = right.toFixed(1) + "%";
   }
 
   /* ======== PRESETS ======== */
@@ -1041,6 +1106,8 @@
     initPresets();
     initRemix();
     initCredits();
+    updateStudioSelectedLabel();
+    updateStudioWaveWindow();
     fillDefaultOptions();
 
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
@@ -1072,8 +1139,7 @@
         setStatus("sync-status", "Détection en cours…");
         var engEl = document.getElementById("select-engine");
         var engine = (engEl && engEl.value) || "whisper";
-        var query = "engine=" + encodeURIComponent(engine);
-        if (engine === "whisper") query = "whisper_model=" + encodeURIComponent(model) + "&" + query;
+        var query = "whisper_model=" + encodeURIComponent(model) + "&engine=" + encodeURIComponent(engine);
         var r = await fetch(API + "/projects/" + id + "/analyze?" + query, { method: "POST", headers: { "Content-Type": "application/json" }, body: hints ? JSON.stringify({ phrase_hints: hints }) : "{}" });
         var data = await r.json();
         if (!r.ok) throw new Error(data.detail || "Erreur");
@@ -1086,9 +1152,15 @@
           }).join(" ");
           wc.classList.remove("hidden");
           startPreview();
+          refreshCaptionsTable();
         }
-        var lbl = data.engine === "heartmula" ? "HeartMuLa" : (data.engine === "azure" ? "Azure" : "Whisper");
-        setStatus("sync-status", data.words_count + " mots détectés (" + lbl + ").");
+        var engineLabels = {
+          "heartmula": "HeartMuLa",
+          "azure": "Azure Speech",
+          "whisper": "Whisper"
+        };
+        var lbl = engineLabels[data.engine] || data.engine;
+        setStatus("sync-status", data.words_count + " mots détectés — " + lbl + " ✓");
       } catch (e) { setStatus("sync-status", e.message, true); }
     });
 

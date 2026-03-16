@@ -9,6 +9,7 @@ import time
 import urllib.request
 import urllib.error
 import json
+import mimetypes
 
 
 HEARTMULA_SUBMIT_URL = "https://api.wavespeed.ai/api/v3/wavespeed-ai/heartmula/transcribe-lyrics"
@@ -108,73 +109,92 @@ def transcribe_lyrics(
     poll_timeout: float = 120.0,
 ) -> str:
     """
-    Envoie l'audio à HeartMuLa et retourne le texte des paroles.
-    L'API attend une URL publique ; si on envoie en multipart, certains backends l'acceptent.
-    Ici on envoie le fichier en base64 dans le body JSON (si l'API le supporte)
-    ou on utilise une URL — selon la doc officielle c'est une URL, donc on tente
-    d'abord avec un body JSON {"audio": "data:audio/mpeg;base64,..."} ou on lit la doc pour "upload".
-    Doc WaveSpeed : "audio | string | Yes | URL to the audio file"
-    Donc il faut une URL publique. On va tenter multipart/form-data avec le fichier
-    car le playground permet "drag and drop / upload".
+    Envoie l'audio à HeartMuLa (WaveSpeed) en multipart/form-data uniquement,
+    comme le playground WaveSpeed (drag & drop). Retourne le texte des paroles.
     """
     audio_path = Path(audio_path)
     if not audio_path.exists():
         raise FileNotFoundError(f"Fichier audio introuvable: {audio_path}")
 
-    with open(audio_path, "rb") as f:
-        audio_bytes = f.read()
+    mime = mimetypes.guess_type(str(audio_path))[0] or "audio/mpeg"
+    safe_name = "audio" + (audio_path.suffix.lower() if audio_path.suffix else ".mp3")
 
-    # L'API WaveSpeed attend soit une URL publique (audio), soit un upload.
-    # On tente d'abord en JSON avec une URL si fournie via env, sinon multipart.
-    import os
-    import mimetypes
-    audio_url = os.environ.get("WAVESPEED_AUDIO_URL", "").strip()
-    if audio_url:
-        req = urllib.request.Request(
-            HEARTMULA_SUBMIT_URL,
-            data=json.dumps({"audio": audio_url}).encode("utf-8"),
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-    else:
-        mime = mimetypes.guess_type(str(audio_path))[0] or "audio/mpeg"
-        boundary = "----WebKitFormBoundary" + str(int(time.time() * 1000))
-        body_start = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="audio"; filename="{audio_path.name}"\r\n'
-            f"Content-Type: {mime}\r\n\r\n"
-        )
-        body_end = f"\r\n--{boundary}--\r\n"
-        body = body_start.encode("utf-8") + audio_bytes + body_end.encode("utf-8")
-        req = urllib.request.Request(
-            HEARTMULA_SUBMIT_URL,
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-            },
-        )
+    import base64
+    import requests
+
+    def do_request(data=None, files=None):
+        kwargs = {
+            "headers": {"Authorization": f"Bearer {api_key}"},
+            "timeout": 300,
+        }
+        if files:
+            kwargs["files"] = files
+        else:
+            kwargs["headers"]["Content-Type"] = "application/json"
+            kwargs["data"] = json.dumps(data) if data else "{}"
+        return requests.post(HEARTMULA_SUBMIT_URL, **kwargs)
+
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body_err = e.read().decode() if e.fp else ""
+        with open(audio_path, "rb") as f:
+            r = do_request(files={"audio": (safe_name, f, mime)})
+        if r.status_code == 400 and "parse request body" in (r.text or "").lower():
+            with open(audio_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            r = do_request(data={"audio": f"data:{mime};base64,{b64}"})
+        r.raise_for_status()
+        data = r.json()
+    except requests.exceptions.HTTPError as e:
+        msg = e.response.text
         try:
-            err_data = json.loads(body_err)
-            msg = err_data.get("message", err_data.get("error", body_err))
+            err_data = e.response.json()
+            msg = err_data.get("message", err_data.get("error", msg))
         except Exception:
-            msg = body_err or str(e)
-        raise RuntimeError(f"HeartMuLa API error: {e.code} — {msg}")
+            pass
+        raise RuntimeError(f"HeartMuLa API error: {e.response.status_code} — {msg}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"HeartMuLa API error: {e}")
 
-    task_id = (data.get("data") or {}).get("id")
+    d = data.get("data") or {}
+    status = d.get("status", "")
+
+    def extract_lyrics_from_outputs(outputs) -> str:
+        if outputs is None:
+            return ""
+        if isinstance(outputs, str):
+            return outputs.strip()
+        if isinstance(outputs, dict):
+            return (outputs.get("lyrics") or "").strip()
+        if isinstance(outputs, list) and outputs:
+            first = outputs[0]
+            if isinstance(first, str):
+                if first.startswith("http"):
+                    with urllib.request.urlopen(
+                        urllib.request.Request(first, headers={"Authorization": f"Bearer {api_key}"}),
+                        timeout=30,
+                    ) as r:
+                        out_data = json.loads(r.read().decode())
+                        return (out_data.get("lyrics") or "").strip()
+                return first.strip()
+            if isinstance(first, dict):
+                return (first.get("lyrics") or "").strip()
+        return ""
+
+    # Réponse synchrone : résultat déjà dans la première réponse (upload fichier)
+    outputs = d.get("outputs") or d.get("data")
+    if status == "completed" or outputs:
+        lyrics = extract_lyrics_from_outputs(outputs)
+        if lyrics:
+            return lyrics
+
+    task_id = d.get("id")
     if not task_id:
-        raise RuntimeError("HeartMuLa n'a pas renvoyé d'id de tâche")
+        info = f"code={data.get('code')}, data.keys={list(d.keys())}"
+        raise RuntimeError(
+            f"HeartMuLa: pas d'id de tâche dans la réponse ({info}). "
+            "Vérifiez le format audio (MP3/WAV) et que l'API accepte l'upload."
+        )
 
-    # Poll pour le résultat
+    # Poll pour le résultat (mode asynchrone)
     result_url = f"{HEARTMULA_RESULT_URL}/{task_id}/result"
     deadline = time.monotonic() + poll_timeout
     while time.monotonic() < deadline:
@@ -190,21 +210,7 @@ def transcribe_lyrics(
         status = d.get("status", "")
         if status == "completed":
             outputs = d.get("outputs") or d.get("data") or {}
-            if isinstance(outputs, dict):
-                lyrics = (outputs.get("lyrics") or "").strip()
-            elif isinstance(outputs, list) and outputs:
-                first = outputs[0]
-                if isinstance(first, str):
-                    if first.startswith("http"):
-                        with urllib.request.urlopen(first, timeout=30) as r:
-                            out_data = json.loads(r.read().decode())
-                            lyrics = (out_data.get("lyrics") or "").strip()
-                    else:
-                        lyrics = first.strip()
-                else:
-                    lyrics = (first.get("lyrics") or "").strip()
-            else:
-                lyrics = ""
+            lyrics = extract_lyrics_from_outputs(outputs)
             return lyrics or ""
         if status == "failed":
             raise RuntimeError(d.get("error", "HeartMuLa a échoué"))

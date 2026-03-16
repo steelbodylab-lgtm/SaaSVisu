@@ -68,6 +68,125 @@ def align_lyrics_with_whisper(
     return result
 
 
+def align_heartmula_on_whisper(
+    heartmula_text: str,
+    whisper_segments: list[dict[str, Any]],
+    min_match_ratio: float = 0.25,
+) -> list[dict[str, Any]]:
+    """
+    Pipeline hybride : texte HeartMuLa + timestamps Whisper.
+
+    Stratégie :
+    1. Découpe les deux sources en mots, normalise (minuscules, sans accents/ponctuation).
+    2. SequenceMatcher aligne les deux séquences (fuzzy matching).
+    3. Si le taux de correspondance est >= min_match_ratio → on utilise l'alignement
+       (chaque mot HeartMuLa reçoit le timestamp du mot Whisper correspondant).
+    4. Si le taux est trop bas → fallback proportionnel sur la timeline Whisper.
+    5. Les mots sans correspondance sont interpolés entre leurs voisins.
+    """
+    from difflib import SequenceMatcher
+    import unicodedata
+    import re
+
+    _p = lambda msg: print(f"[aligner] {msg}", flush=True)
+
+    def _norm(w: str) -> str:
+        w = unicodedata.normalize("NFKD", w.lower())
+        return re.sub(r"[^\w]", "", w)
+
+    hm_words = [w for w in heartmula_text.split() if w.strip()]
+    if not hm_words:
+        return []
+
+    wh_words = []
+    for seg in whisper_segments:
+        txt = (seg.get("text") or "").strip()
+        if not txt:
+            continue
+        wh_words.append({
+            "text": txt,
+            "start": seg.get("start_time_ms", 0),
+            "end": seg.get("end_time_ms", 0),
+        })
+    if not wh_words:
+        return []
+
+    _p(f"HeartMuLa : {len(hm_words)} mots | Whisper : {len(wh_words)} mots")
+
+    hm_norm = [_norm(w) for w in hm_words]
+    wh_norm = [_norm(w["text"]) for w in wh_words]
+
+    # --- Alignement par SequenceMatcher ---
+    sm = SequenceMatcher(None, hm_norm, wh_norm)
+    hm_to_wh: dict[int, int] = {}
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            for k in range(i2 - i1):
+                hm_to_wh[i1 + k] = j1 + k
+        elif tag == "replace":
+            for k in range(min(i2 - i1, j2 - j1)):
+                hm_to_wh[i1 + k] = j1 + k
+
+    match_ratio = len(hm_to_wh) / max(len(hm_words), 1)
+    _p(f"Taux de correspondance : {match_ratio:.0%} ({len(hm_to_wh)}/{len(hm_words)} mots)")
+
+    # --- Fallback proportionnel si trop peu de correspondances ---
+    if match_ratio < min_match_ratio:
+        _p("Taux trop bas → fallback proportionnel sur la timeline Whisper.")
+        timeline_start = wh_words[0]["start"]
+        timeline_end = wh_words[-1]["end"]
+        total_dur = max(timeline_end - timeline_start, 1)
+        total_chars = max(sum(len(w) for w in hm_words), 1)
+        result = []
+        t = float(timeline_start)
+        for i, word in enumerate(hm_words):
+            w_start = int(t)
+            char_ratio = len(word) / total_chars
+            t += char_ratio * total_dur
+            w_end = int(t) if i < len(hm_words) - 1 else timeline_end
+            result.append({"text": word, "start_time_ms": w_start, "end_time_ms": w_end})
+        return result
+
+    # --- Construire le résultat avec correspondances ---
+    result: list[dict[str, Any]] = []
+    for i, word in enumerate(hm_words):
+        if i in hm_to_wh:
+            wh = wh_words[hm_to_wh[i]]
+            result.append({"text": word, "start_time_ms": wh["start"], "end_time_ms": wh["end"]})
+        else:
+            result.append({"text": word, "start_time_ms": -1, "end_time_ms": -1})
+
+    # --- Interpolation des mots non matchés ---
+    i = 0
+    while i < len(result):
+        if result[i]["start_time_ms"] >= 0:
+            i += 1
+            continue
+        gap_start = i
+        while i < len(result) and result[i]["start_time_ms"] < 0:
+            i += 1
+        gap_end = i
+
+        prev_end = 0
+        if gap_start > 0:
+            prev_end = result[gap_start - 1]["end_time_ms"]
+        next_start = prev_end + 500
+        if gap_end < len(result):
+            next_start = result[gap_end]["start_time_ms"]
+
+        gap_len = gap_end - gap_start
+        step = (next_start - prev_end) / (gap_len + 1)
+        for k in range(gap_len):
+            idx = gap_start + k
+            s = int(prev_end + step * (k + 1))
+            e = int(prev_end + step * (k + 2))
+            result[idx]["start_time_ms"] = s
+            result[idx]["end_time_ms"] = min(e, next_start)
+
+    _p(f"Alignement terminé : {len(result)} mots avec timestamps.")
+    return result
+
+
 def load_sync_json(path: str | Path) -> list[dict[str, Any]]:
     """Charge un fichier sync.json (lignes avec start_time_ms, end_time_ms)."""
     with open(path, encoding="utf-8") as f:
