@@ -92,6 +92,23 @@ def _ensure_env_loaded():
         pass
 
 
+def _azure_speech_available():
+    import os
+    return bool((os.environ.get("AZURE_SPEECH_KEY") or "").strip()) and bool((os.environ.get("AZURE_SPEECH_REGION") or "").strip())
+
+
+def _heartmula_available():
+    import os
+    if (os.environ.get("WAVESPEED_API_KEY") or "").strip():
+        return True
+    return (os.environ.get("HEARTMULA_USE_LOCAL") or "").strip() == "1"
+
+
+def _heartmula_use_local():
+    import os
+    return (os.environ.get("HEARTMULA_USE_LOCAL") or "").strip() == "1"
+
+
 @app.get("/config/speech")
 def get_speech_config():
     """Indique quels moteurs STT sont disponibles."""
@@ -99,7 +116,12 @@ def get_speech_config():
     _ensure_env_loaded()
     return {
         "assemblyai_available": bool((os.environ.get("ASSEMBLYAI_API_KEY") or "").strip()),
+        "audioshake_available": bool((os.environ.get("AUDIOSHAKE_API_KEY") or "").strip()),
+        "azure_available": _azure_speech_available(),
+        "heartmula_available": _heartmula_available(),
+        "heartmula_local": _heartmula_available() and _heartmula_use_local(),
     }
+
 
 @app.post("/projects")
 def create_project(body: ProjectCreate):
@@ -185,9 +207,11 @@ def apply_audio_segment(project_id: str, body: AudioSegmentBody):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Fichier audio invalide : {e}")
     total_ms = len(seg)
-    end_ms = min(start_ms + duration_ms, total_ms)
     if start_ms >= total_ms:
-        raise HTTPException(status_code=400, detail="start_seconds dépasse la durée de l'audio")
+        # Le fichier a déjà été découpé (ex. extrait 20 s) : on garde tout le fichier actuel
+        start_ms = 0
+        duration_ms = total_ms
+    end_ms = min(start_ms + duration_ms, total_ms)
     excerpt = seg[start_ms:end_ms]
     fmt = (audio_file.suffix or ".mp3").lstrip(".").lower()
     if fmt == "m4a":
@@ -293,7 +317,12 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
         raise HTTPException(status_code=400, detail="Aucun fichier audio dans le projet")
 
     assemblyai_key = (os.environ.get("ASSEMBLYAI_API_KEY") or "").strip()
+    audioshake_key = (os.environ.get("AUDIOSHAKE_API_KEY") or "").strip()
     use_assemblyai = (engine == "assemblyai") and bool(assemblyai_key)
+    use_audioshake = (engine == "audioshake") and bool(audioshake_key)
+    use_azure = (engine == "azure") and _azure_speech_available()
+    use_heartmula = (engine == "heartmula") and _heartmula_available()
+    use_heartmula_local = use_heartmula and _heartmula_use_local()
 
     segments = []
     engine_label = "whisper"
@@ -307,13 +336,89 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
             if not aai_available():
                 raise HTTPException(
                     status_code=503,
-                    detail="AssemblyAI : pip install assemblyai et ASSEMBLYAI_API_KEY dans .env",
+                    detail="AssemblyAI : pip install requests et ASSEMBLYAI_API_KEY dans .env",
                 )
-            print("[analyze] Moteur AssemblyAI Universal-3 Pro + Demucs.", flush=True)
+            print("[analyze] Moteur AssemblyAI Universal-3 Pro.", flush=True)
             segments = aai_extract(audio_file, api_key=assemblyai_key, language_code="fr", use_demucs=True)
             engine_label = "assemblyai"
-            engine_msg = "Paroles détectées par AssemblyAI Universal-3 Pro (Demucs + calage précis)."
+            engine_msg = "Paroles détectées par AssemblyAI Universal-3 Pro."
+        elif use_audioshake:
+            from saasvisu.sync_engine.audioshake_timestamps import (
+                extract_word_timestamps as ash_extract,
+                is_available as ash_available,
+            )
+            if not ash_available():
+                raise HTTPException(
+                    status_code=503,
+                    detail="AudioShake : AUDIOSHAKE_API_KEY dans .env (dashboard.audioshake.ai)",
+                )
+            print("[analyze] Moteur AudioShake (transcription + alignment).", flush=True)
+            segments = ash_extract(audio_file, api_key=audioshake_key, language_code="fr")
+            engine_label = "audioshake"
+            engine_msg = "Paroles détectées par AudioShake (qualité pro)."
+        elif use_azure:
+            from saasvisu.sync_engine.azure_speech_adapter import transcribe_to_words as azure_transcribe
+            key = (os.environ.get("AZURE_SPEECH_KEY") or "").strip()
+            region = (os.environ.get("AZURE_SPEECH_REGION") or "francecentral").strip()
+            print("[analyze] Moteur Azure Speech.", flush=True)
+            segments = azure_transcribe(audio_file, subscription_key=key, region=region, language="fr-FR")
+            engine_label = "azure"
+            engine_msg = "Paroles détectées par Azure Speech."
+        elif use_heartmula:
+            from saasvisu.sync_engine.aligner import align_heartmula_on_whisper
+            from saasvisu.sync_engine.whisper_adapter import transcribe_to_words as whisper_to_words
+            # Timestamps via Whisper, texte via HeartMuLa (local ou API)
+            whisper_segments = whisper_to_words(audio_file, model_name=whisper_model, language="fr")
+            if not whisper_segments:
+                raise HTTPException(status_code=400, detail="Whisper n'a retourné aucun segment pour l'alignement.")
+            if use_heartmula_local:
+                from saasvisu.sync_engine.heartmula_adapter import transcribe_lyrics_local, _local_available
+                if not _local_available():
+                    raise HTTPException(
+                        status_code=503,
+                        detail="HeartMuLa (local) nécessite torch et transformers. Exécutez : pip install -r requirements-heartmula-local.txt",
+                    )
+                import threading
+                result = []
+                exc_holder = []
+
+                def run_local():
+                    try:
+                        result.append(transcribe_lyrics_local(audio_file))
+                    except Exception as e:
+                        exc_holder.append(e)
+
+                th = threading.Thread(target=run_local)
+                th.daemon = True
+                th.start()
+                th.join(timeout=300)
+                if th.is_alive():
+                    raise HTTPException(
+                        status_code=504,
+                        detail="Détection HeartMuLa (local) trop longue (timeout 5 min). Réessaie avec un extrait plus court ou utilise Whisper.",
+                    )
+                if exc_holder:
+                    raise exc_holder[0]
+                lyrics_text = result[0]
+                print("[analyze] Moteur HeartMuLa (local).", flush=True)
+            else:
+                from saasvisu.sync_engine.heartmula_adapter import transcribe_lyrics
+                api_key = (os.environ.get("WAVESPEED_API_KEY") or "").strip()
+                lyrics_text = transcribe_lyrics(audio_file, api_key=api_key)
+                print("[analyze] Moteur HeartMuLa (WaveSpeed API).", flush=True)
+            segments = align_heartmula_on_whisper(lyrics_text, whisper_segments)
+            engine_label = "heartmula"
+            engine_msg = "Paroles détectées par HeartMuLa (texte) + calage Whisper."
         else:
+            # Comme pour AssemblyAI : Demucs (voix seules) améliore nettement la transcription chant
+            audio_for_whisper = audio_file
+            from saasvisu.sync_engine.vocal_separator import separate_vocals, is_available as demucs_ok
+            if demucs_ok():
+                try:
+                    print("[analyze] Séparation vocale (Demucs) avant Whisper…", flush=True)
+                    audio_for_whisper = separate_vocals(audio_file)
+                except Exception as e:
+                    print(f"[analyze] Demucs ignoré: {e}, utilisation de l'audio brut.", flush=True)
             from saasvisu.sync_engine.faster_whisper_timestamps import (
                 extract_word_timestamps as fw_extract,
                 is_available as fw_available,
@@ -321,12 +426,12 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
             if fw_available():
                 fw_model = "large-v3" if whisper_model in ("large", "large-v3") else whisper_model
                 print(f"[analyze] Moteur Whisper (faster-whisper {fw_model}).", flush=True)
-                segments = fw_extract(audio_file, model_name=fw_model, language="fr", vad_filter=False)
+                segments = fw_extract(audio_for_whisper, model_name=fw_model, language="fr", vad_filter=False)
             else:
                 from saasvisu.sync_engine.whisper_adapter import transcribe_to_words
                 print(f"[analyze] Moteur Whisper classique ({whisper_model}).", flush=True)
-                segments = transcribe_to_words(audio_file, model_name=whisper_model, language="fr")
-            engine_msg = "Paroles détectées par Whisper (local)."
+                segments = transcribe_to_words(audio_for_whisper, model_name=whisper_model, language="fr")
+            engine_msg = "Paroles détectées par Whisper (local) + Demucs."
     except HTTPException:
         raise
     except Exception as e:
@@ -338,7 +443,7 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
     if not segments:
         msg = "Aucune parole détectée dans l'audio."
         if use_assemblyai:
-            msg += " Vérifiez que l'audio contient bien de la voix, que le fichier est valide (MP3/WAV), et que ASSEMBLYAI_API_KEY dans .env est correcte. Sinon essayez le moteur Whisper (local)."
+            msg += " Vérifiez ASSEMBLYAI_API_KEY dans .env. Après une détection, regarde le terminal (logs [AssemblyAI]) et le fichier debug_assemblyai_last.json à la racine du projet pour voir la réponse exacte de l'API."
         else:
             msg += " Vérifiez que l'audio contient de la voix et que le fichier est valide."
         raise HTTPException(status_code=400, detail=msg)

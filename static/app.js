@@ -4,11 +4,41 @@
   var currentSegments = null;
   var currentPhrases = [];
   var displayMode = "mot";
-  var PHRASE_GAP_MS = 550;
+  var PHRASE_GAP_MS = 138;
+  var PHRASE_MAX_WORDS = 10;
   var currentBeats = [];
   var beatEffect = "none";
   var lastBeatIdx = -1;
   var excerptInfo = { start: 0, duration: 20 };
+
+  var phraseLineMirror = null;
+  function getPhraseLineMirror() {
+    if (phraseLineMirror) return phraseLineMirror;
+    phraseLineMirror = document.createElement("div");
+    phraseLineMirror.setAttribute("aria-hidden", "true");
+    phraseLineMirror.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre-wrap;word-wrap:break-word;overflow:hidden;box-sizing:border-box;padding:.4rem .5rem;font-size:.88rem;line-height:1.4;font-family:inherit;border:1px solid transparent;min-height:36px;";
+    document.body.appendChild(phraseLineMirror);
+    return phraseLineMirror;
+  }
+  function resizePhraseLine(ta) {
+    if (!ta || ta.nodeName !== "TEXTAREA") return;
+    var mirror = getPhraseLineMirror();
+    var style = window.getComputedStyle(ta);
+    mirror.style.width = ta.offsetWidth + "px";
+    mirror.style.fontSize = style.fontSize;
+    mirror.style.fontFamily = style.fontFamily;
+    mirror.style.lineHeight = style.lineHeight;
+    mirror.style.padding = style.padding;
+    mirror.style.letterSpacing = style.letterSpacing;
+    var val = (ta.value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    mirror.textContent = val || " ";
+    var h = Math.max(mirror.offsetHeight, 36);
+    ta.style.overflowY = "hidden";
+    ta.style.height = h + "px";
+  }
+  function resizeAllPhraseLines() {
+    document.querySelectorAll("#lyrics-phrases .app-phrase-line").forEach(resizePhraseLine);
+  }
 
   function groupIntoPhrases(segments) {
     if (!segments || !segments.length) return [];
@@ -17,7 +47,9 @@
     for (var i = 1; i < segments.length; i++) {
       var prevEnd = segments[i - 1].end_time_ms || 0;
       var currStart = segments[i].start_time_ms || 0;
-      if (currStart - prevEnd >= PHRASE_GAP_MS) {
+      var gapNewPhrase = currStart - prevEnd >= PHRASE_GAP_MS;
+      var capReached = cur.length >= PHRASE_MAX_WORDS;
+      if (gapNewPhrase || capReached) {
         phrases.push(cur);
         cur = [{ seg: segments[i], idx: i }];
       } else {
@@ -431,9 +463,24 @@
     var ov = document.getElementById("preview-overlay");
     var stage = document.getElementById("preview-stage");
     if (!ov || !stage) return;
+    var SNAP_THRESHOLD = 0.12;
     function startDrag(ex, ey) { if (!isDragMode) return; isDragging = true; ov.classList.add("dragging"); var r = ov.getBoundingClientRect(); dragOffset.x = ex - r.left; dragOffset.y = ey - r.top; }
     function moveDrag(ex, ey) { if (!isDragging) return; var sr = stage.getBoundingClientRect(); var x = Math.max(0, Math.min(ex - sr.left - dragOffset.x, sr.width - ov.offsetWidth)); var y = Math.max(0, Math.min(ey - sr.top - dragOffset.y, sr.height - ov.offsetHeight)); ov.style.left = x + "px"; ov.style.top = y + "px"; ov.style.transform = "none"; ov.style.right = "auto"; }
-    function endDrag() { isDragging = false; ov.classList.remove("dragging"); }
+    function endDrag() {
+      isDragging = false;
+      ov.classList.remove("dragging");
+      if (isDragMode && isAppNewUI()) {
+        var sr = stage.getBoundingClientRect();
+        var ovr = ov.getBoundingClientRect();
+        var cx = ovr.left - sr.left + ovr.width / 2;
+        var cy = ovr.top - sr.top + ovr.height / 2;
+        var stageCx = sr.width / 2, stageCy = sr.height / 2;
+        if (Math.abs(cx - stageCx) < sr.width * SNAP_THRESHOLD && Math.abs(cy - stageCy) < sr.height * SNAP_THRESHOLD) {
+          ov.style.left = "50%"; ov.style.top = "50%"; ov.style.right = "auto"; ov.style.transform = "translate(-50%,-50%)";
+          var pe = document.getElementById("select-position"); if (pe) pe.value = "center";
+        }
+      }
+    }
     ov.addEventListener("mousedown", function (e) { e.preventDefault(); startDrag(e.clientX, e.clientY); });
     document.addEventListener("mousemove", function (e) { moveDrag(e.clientX, e.clientY); });
     document.addEventListener("mouseup", endDrag);
@@ -478,6 +525,75 @@
     dz.addEventListener("dragover", function (e) { e.preventDefault(); dz.classList.add("dragover"); });
     dz.addEventListener("dragleave", function (e) { if (!dz.contains(e.relatedTarget)) dz.classList.remove("dragover"); });
     dz.addEventListener("drop", function (e) { e.preventDefault(); dz.classList.remove("dragover"); if (e.dataTransfer && e.dataTransfer.files.length) doUpload(e.dataTransfer.files[0]); });
+  }
+
+  function isAppNewUI() { return !!document.getElementById("dropzone-main"); }
+
+  var uploadedAudioName = "";
+  var uploadedBgName = "";
+
+  function updateDropzoneDisplay() {
+    var dz = document.getElementById("dropzone-filenames");
+    var main = document.getElementById("dropzone-main");
+    if (!dz) return;
+    var parts = [];
+    parts.push("Audio: " + (uploadedAudioName || "—"));
+    parts.push("Vidéo/Image: " + (uploadedBgName || "—"));
+    dz.textContent = parts.join("  ·  ");
+    if (main) main.classList.toggle("has-file", !!uploadedAudioName);
+  }
+
+  async function handleFiles(files) {
+    if (!files || !files.length) return;
+    var id = await ensureProject();
+    var list = Array.from(files);
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      var t = (f.type || "").toLowerCase();
+      var name = f.name || "";
+      if (t.indexOf("audio") >= 0) {
+        setStatus("upload-status", "Envoi de l’audio…");
+        try {
+          var form = new FormData(); form.append("file", f);
+          var r = await fetch(API + "/projects/" + id + "/audio", { method: "POST", body: form });
+          var d = {}; try { d = JSON.parse(await r.text()); } catch (_) {}
+          if (r.ok) { uploadedAudioName = name; updateDropzoneDisplay(); setStatus("upload-status", "Audio enregistré."); }
+          else setStatus("upload-status", d.detail || "Erreur audio", true);
+        } catch (e) { setStatus("upload-status", e.message, true); }
+      } else if (t.indexOf("video") >= 0 || t.indexOf("image") >= 0) {
+        setStatus("upload-status", "Envoi du fond…");
+        try {
+          var form2 = new FormData(); form2.append("file", f);
+          var r2 = await fetch(API + "/projects/" + id + "/background", { method: "POST", body: form2 });
+          var d2 = {}; try { d2 = JSON.parse(await r2.text()); } catch (_) {}
+          if (r2.ok) { uploadedBgName = name; updateDropzoneDisplay(); setStatus("upload-status", "Fond enregistré."); }
+          else setStatus("upload-status", d2.detail || "Erreur fond", true);
+        } catch (e) { setStatus("upload-status", e.message, true); }
+      } else {
+        setStatus("upload-status", "Type non supporté : " + name + " (il faut un audio et/ou une vidéo ou image).", true);
+      }
+    }
+    if (uploadedAudioName) setStatus("upload-status", uploadedBgName ? "Fichiers prêts." : "Audio prêt. Tu peux ajouter une vidéo/image ou lancer la détection.");
+  }
+
+  function setupSingleDropzone() {
+    var dz = document.getElementById("dropzone-main");
+    var input = document.getElementById("input-files");
+    if (!dz || !input) return;
+    function onFiles(files) {
+      if (!files || !files.length) return;
+      handleFiles(Array.from(files));
+      input.value = "";
+    }
+    input.addEventListener("change", function () { if (input.files && input.files.length) onFiles(input.files); });
+    dz.addEventListener("click", function (e) { if (e.target !== input) { e.preventDefault(); input.click(); } });
+    dz.addEventListener("dragover", function (e) { e.preventDefault(); dz.classList.add("dragover"); });
+    dz.addEventListener("dragleave", function (e) { if (!dz.contains(e.relatedTarget)) dz.classList.remove("dragover"); });
+    dz.addEventListener("drop", function (e) {
+      e.preventDefault();
+      dz.classList.remove("dragover");
+      if (e.dataTransfer && e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
+    });
   }
 
   /* ======== UPLOAD ======== */
@@ -528,20 +644,73 @@
 
   /* ======== OPTIONS ======== */
   var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret" };
+  var APP_FONTS = ["Impact", "Georgia", "Broadway", "Stencil", "Ravie", "Vivaldi", "Brush Script MT", "Cooper Black", "Bodoni MT", "Magneto"];
   function fillDefaultOptions() {
     var fs = document.getElementById("select-font");
     var es = document.getElementById("select-effect");
+    if (isAppNewUI()) {
+      if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
+      return;
+    }
     if (fs && !fs.options.length) ["Arial","Impact","Georgia","Verdana","Segoe UI","Times New Roman"].forEach(function (f) { fs.appendChild(new Option(f, f)); });
-    if (es && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras",l:"Gras" },{ v:"minimal",l:"Minimal" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
+    if (es && es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras",l:"Gras" },{ v:"minimal",l:"Minimal" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
   }
   function loadRenderOptions() {
+    if (isAppNewUI()) {
+      var fs = document.getElementById("select-font");
+      if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
+      return;
+    }
     fetch(API + "/config/options").then(function (r) { return r.json(); }).then(function (data) {
       var fs = document.getElementById("select-font");
       var es = document.getElementById("select-effect");
-      if (fs && data.fonts && data.fonts.length) fs.innerHTML = data.fonts.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join("");
-      if (es && data.effects && data.effects.length) es.innerHTML = data.effects.map(function (e) { return '<option value="' + e + '">' + (effectLabels[e] || e) + '</option>'; }).join("");
+      if (fs && data.fonts && data.fonts.length && es && es.tagName === "SELECT") {
+        fs.innerHTML = data.fonts.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join("");
+        if (data.effects && data.effects.length) es.innerHTML = data.effects.map(function (e) { return '<option value="' + e + '">' + (effectLabels[e] || e) + '</option>'; }).join("");
+      }
       fillDefaultOptions();
     }).catch(fillDefaultOptions);
+  }
+  function initNewUIPills() {
+    document.querySelectorAll(".app-pill-effect").forEach(function (pill) {
+      pill.addEventListener("click", function () {
+        document.querySelectorAll(".app-pill-effect").forEach(function (p) { p.classList.remove("active"); });
+        pill.classList.add("active");
+        var hid = document.getElementById("select-effect");
+        if (hid) hid.value = pill.dataset.effect || "neon";
+        updatePreviewOverlay();
+      });
+    });
+    document.querySelectorAll(".app-pill-display").forEach(function (pill) {
+      pill.addEventListener("click", function () {
+        document.querySelectorAll(".app-pill-display").forEach(function (p) { p.classList.remove("active"); });
+        pill.classList.add("active");
+        displayMode = pill.dataset.display || "mot";
+        var hid = document.getElementById("select-display");
+        if (hid) hid.value = displayMode;
+        updatePreviewOverlay();
+      });
+    });
+    document.querySelectorAll(".app-pill-pos").forEach(function (pill) {
+      pill.addEventListener("click", function () {
+        document.querySelectorAll(".app-pill-pos").forEach(function (p) { p.classList.remove("active"); });
+        pill.classList.add("active");
+        var pos = pill.dataset.pos || "center";
+        var hid = document.getElementById("select-position");
+        if (hid) hid.value = pos;
+        if (pos === "drag") enableDragMode(); else disableDragMode();
+        updatePreviewOverlay();
+      });
+    });
+    var sizeInput = document.getElementById("input-font-size");
+    var sizeVal = document.getElementById("font-size-val");
+    if (sizeInput && sizeVal) {
+      sizeInput.addEventListener("input", function () { sizeVal.textContent = sizeInput.value; updatePreviewOverlay(); });
+    }
+    ["select-font", "input-text-color"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.addEventListener("change", updatePreviewOverlay); el.addEventListener("input", updatePreviewOverlay); }
+    });
   }
   function loadSpeechConfig() {
     var ctrl = new AbortController();
@@ -553,15 +722,22 @@
       var opts = document.getElementById("whisper-options");
       if (sel) {
         sel.innerHTML = "";
-        if (data.assemblyai_available) sel.appendChild(new Option("AssemblyAI Pro + Demucs (recommandé)", "assemblyai"));
+        if (data.audioshake_available) sel.appendChild(new Option("AudioShake (qualité pro — recommandé)", "audioshake"));
+        if (data.assemblyai_available) sel.appendChild(new Option("AssemblyAI Pro + Demucs", "assemblyai"));
+        if (data.azure_available) sel.appendChild(new Option("Azure Speech", "azure"));
+        if (data.heartmula_available) {
+          if (data.heartmula_local) sel.appendChild(new Option("HeartMuLa (local)", "heartmula"));
+          else sel.appendChild(new Option("HeartMuLa (WaveSpeed)", "heartmula"));
+        }
         sel.appendChild(new Option("Whisper (local)", "whisper"));
         if (wrap) wrap.classList.remove("hidden");
       }
+      var isWhisperOnly = !data.audioshake_available && !data.assemblyai_available && !data.azure_available && !data.heartmula_available;
       if (badge) {
-        badge.textContent = data.assemblyai_available ? "AssemblyAI" : "Whisper";
-        badge.classList.toggle("whisper", !data.assemblyai_available);
+        badge.textContent = data.audioshake_available && sel && sel.value === "audioshake" ? "AudioShake" : data.assemblyai_available && sel && sel.value === "assemblyai" ? "AssemblyAI" : (data.azure_available && sel && sel.value === "azure") ? "Azure" : (data.heartmula_available && sel && sel.value === "heartmula") ? "HeartMuLa" : "Whisper";
+        badge.classList.toggle("whisper", !data.audioshake_available && !data.assemblyai_available && (!sel || sel.value === "whisper"));
       }
-      if (opts) opts.classList.toggle("hidden", data.assemblyai_available);
+      if (opts) opts.classList.toggle("hidden", data.audioshake_available || data.assemblyai_available || (sel && (sel.value === "azure" || sel.value === "heartmula")));
     }).catch(function () {
       clearTimeout(tid);
       var badge = document.getElementById("engine-badge");
@@ -569,7 +745,10 @@
       var sel = document.getElementById("select-engine");
       if (sel) {
         sel.innerHTML = "";
-        sel.appendChild(new Option("AssemblyAI Pro + Demucs (recommandé)", "assemblyai"));
+        sel.appendChild(new Option("AudioShake (qualité pro — recommandé)", "audioshake"));
+        sel.appendChild(new Option("AssemblyAI Pro + Demucs", "assemblyai"));
+        sel.appendChild(new Option("Azure Speech", "azure"));
+        sel.appendChild(new Option("HeartMuLa (local)", "heartmula"));
         sel.appendChild(new Option("Whisper (local)", "whisper"));
       }
       if (badge) { badge.textContent = "Whisper"; badge.classList.add("whisper"); }
@@ -579,11 +758,41 @@
 
   /* ======== WORDS ======== */
   function getWordsFromBoxes() {
+    if (isAppNewUI()) {
+      var out = [];
+      document.querySelectorAll("#lyrics-phrases .app-phrase-line").forEach(function (line) {
+        var t = (line.value || line.textContent || "").trim().split(/\s+/).filter(Boolean);
+        out = out.concat(t);
+      });
+      return out;
+    }
     var out = [];
     document.querySelectorAll("#lyrics-words .word-box").forEach(function (b) { out.push((b.textContent || "").trim().replace(/\s+/g, " ")); });
     return out;
   }
+  function getSegmentsFromBoxesFromPhraseLines() {
+    var out = [];
+    if (!currentSegments || !currentPhrases.length) return out;
+    var container = document.getElementById("lyrics-phrases");
+    if (!container) return out;
+    var lines = container.querySelectorAll(".app-phrase-line");
+    for (var i = 0; i < currentPhrases.length && i < lines.length; i++) {
+      var phrase = currentPhrases[i];
+      var lineEl = lines[i];
+      var text = (lineEl.value || lineEl.textContent || "").trim();
+      var words = text.split(/\s+/).filter(Boolean);
+      for (var j = 0; j < words.length && j < phrase.length; j++) {
+        var segIdx = phrase[j].idx;
+        var seg = currentSegments[segIdx];
+        if (seg) out.push({ start_time_ms: seg.start_time_ms, end_time_ms: seg.end_time_ms, text: words[j] });
+      }
+    }
+    return out;
+  }
   function getSegmentsFromBoxes() {
+    if (isAppNewUI() && document.getElementById("lyrics-phrases") && document.querySelectorAll("#lyrics-phrases .app-phrase-line").length) {
+      return getSegmentsFromBoxesFromPhraseLines();
+    }
     var out = [];
     if (!currentSegments) return out;
     document.querySelectorAll("#lyrics-words .word-box-wrap").forEach(function (w) {
@@ -602,9 +811,10 @@
     var ce = document.getElementById("input-text-color");
     var se = document.getElementById("input-font-size");
     var pe = document.getElementById("select-position");
+    var effectVal = (es && (es.value !== undefined && es.value !== null)) ? es.value : (isAppNewUI() ? "neon" : "classique");
     return {
-      font: (fs && fs.value) || "Arial",
-      effect: (es && es.value) || "classique",
+      font: (fs && fs.value) || "Impact",
+      effect: effectVal,
       color: (ce && ce.value) || "#FFFFFF",
       size: (se && se.value) ? parseInt(se.value, 10) : 48,
       position: (pe && pe.value) || "center"
@@ -612,6 +822,19 @@
   }
 
   function _getWordText(segIdx) {
+    if (isAppNewUI() && currentPhrases.length) {
+      for (var p = 0; p < currentPhrases.length; p++) {
+        for (var w = 0; w < currentPhrases[p].length; w++) {
+          if (currentPhrases[p][w].idx === segIdx) {
+            var line = document.querySelector('#lyrics-phrases .app-phrase-line[data-phrase-idx="' + p + '"]');
+            if (!line) return (currentSegments[segIdx] && currentSegments[segIdx].text) || "";
+            var words = (line.value || line.textContent || "").trim().split(/\s+/).filter(Boolean);
+            return words[w] || (currentSegments[segIdx] && currentSegments[segIdx].text) || "";
+          }
+        }
+      }
+      return (currentSegments[segIdx] && currentSegments[segIdx].text) || "";
+    }
     var w = document.querySelector('#lyrics-words .word-box-wrap[data-segment-index="' + segIdx + '"]');
     var box = w && w.querySelector(".word-box");
     return (box ? box.textContent : "").trim() || (currentSegments[segIdx] && currentSegments[segIdx].text) || "";
@@ -655,7 +878,15 @@
     var idx = _findActiveSegIdx(tMs);
 
     document.querySelectorAll("#lyrics-words .word-box-wrap").forEach(function (w) { w.classList.remove("current-word"); });
-    if (idx >= 0) {
+    if (isAppNewUI() && currentPhrases.length) {
+      document.querySelectorAll("#lyrics-phrases .app-phrase-line").forEach(function (l) { l.classList.remove("current-phrase"); });
+      var loc = idx >= 0 ? _findPhraseForIdx(idx) : null;
+      if (loc !== null) {
+        var pl = document.querySelector('#lyrics-phrases .app-phrase-line[data-phrase-idx="' + loc.phraseIdx + '"]');
+        if (pl) pl.classList.add("current-phrase");
+      }
+    }
+    if (idx >= 0 && !isAppNewUI()) {
       var wEl = document.querySelector('#lyrics-words .word-box-wrap[data-segment-index="' + idx + '"]');
       if (wEl) wEl.classList.add("current-word");
     }
@@ -791,7 +1022,10 @@
 
     ["select-font", "select-effect", "input-text-color"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.addEventListener("change", updatePreviewOverlay);
+      if (el) {
+        el.addEventListener("change", updatePreviewOverlay);
+        el.addEventListener("input", updatePreviewOverlay);
+      }
     });
     updatePreviewOverlay();
   }
@@ -1104,18 +1338,25 @@
 
   /* ======== INIT ======== */
   document.addEventListener("DOMContentLoaded", function () {
-    initParticles();
-    initScrollAnimations();
-    initFullstepScroll();
-    initAnimCarousel();
-    initVignettes();
-    initPills();
+    if (!isAppNewUI()) {
+      initParticles();
+      initScrollAnimations();
+      initFullstepScroll();
+      initAnimCarousel();
+      initVignettes();
+      initPills();
+      updateStudioSelectedLabel();
+      updateStudioWaveWindow();
+    } else {
+      setupSingleDropzone();
+      loadRenderOptions();
+      initNewUIPills();
+      window.addEventListener("resize", function () { resizeAllPhraseLines(); });
+    }
     initOverlayDrag();
     initPresets();
     initRemix();
     initCredits();
-    updateStudioSelectedLabel();
-    updateStudioWaveWindow();
     fillDefaultOptions();
 
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
@@ -1127,43 +1368,107 @@
       });
     });
 
-    setupDropzone("dropzone-audio", "input-audio", "audio-filename", uploadAudioFile);
-    setupDropzone("dropzone-background", "input-background", "background-filename", uploadBackgroundFile);
+    if (document.getElementById("dropzone-audio")) setupDropzone("dropzone-audio", "input-audio", "audio-filename", uploadAudioFile);
+    if (document.getElementById("dropzone-background")) setupDropzone("dropzone-background", "input-background", "background-filename", uploadBackgroundFile);
     var btnExcerpt = document.getElementById("btn-apply-excerpt");
     if (btnExcerpt) btnExcerpt.addEventListener("click", applyExcerpt);
     ensureProject().then(function () { loadPresets(); }).catch(function () {});
     loadRenderOptions();
     loadSpeechConfig();
 
+    var selEngine = document.getElementById("select-engine");
+    var engineBadge = document.getElementById("engine-badge");
+    var whisperOpts = document.getElementById("whisper-options");
+    if (selEngine) {
+      selEngine.addEventListener("change", function () {
+        var v = selEngine.value;
+        var label = (selEngine.selectedIndex >= 0 && selEngine.options[selEngine.selectedIndex]) ? selEngine.options[selEngine.selectedIndex].text : v;
+        if (engineBadge) { engineBadge.textContent = label.split(" ")[0]; engineBadge.classList.toggle("whisper", v === "whisper"); }
+        if (whisperOpts) whisperOpts.classList.toggle("hidden", v !== "whisper");
+      });
+    }
+
     /* Détection paroles */
     var btnDetect = document.getElementById("btn-detect-lyrics");
     if (btnDetect) btnDetect.addEventListener("click", async function () {
       try {
         var id = await ensureProject();
+        var startEl = document.getElementById("excerpt-start");
+        var durEl = document.getElementById("excerpt-duration");
+        var start = (startEl && parseFloat(startEl.value)) || 0;
+        var dur = (durEl && parseFloat(durEl.value)) || 20;
+        // En nouvelle UI : pas d'extrait, on analyse l'audio en entier. Ancienne UI : appliquer l'extrait si renseigné.
+        if (!isAppNewUI() && dur > 0 && dur <= 120) {
+          setStatus("sync-status", "Application de l'extrait…");
+          var segR = await fetch(API + "/projects/" + id + "/audio/segment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start_seconds: start, duration_seconds: dur }) });
+          if (!segR.ok) { var err = {}; try { err = await segR.json(); } catch (_) {} throw new Error(err.detail || "Erreur extrait"); }
+        }
         var modelEl = document.getElementById("select-whisper-model");
         var model = modelEl ? modelEl.value : "large";
         var hints = getWordsFromBoxes().filter(Boolean).join(" ");
         if (!hints && currentSegments) hints = currentSegments.map(function (s) { return s.text; }).join(" ");
-        setStatus("sync-status", "Détection en cours…");
+        setStatus("sync-status", "Détection en cours… (peut prendre 1 à 2 min avec AudioShake/AssemblyAI, ne pas quitter la page)");
         var engEl = document.getElementById("select-engine");
         var engine = (engEl && engEl.value) || "whisper";
         var query = "whisper_model=" + encodeURIComponent(model) + "&engine=" + encodeURIComponent(engine);
-        var r = await fetch(API + "/projects/" + id + "/analyze?" + query, { method: "POST", headers: { "Content-Type": "application/json" }, body: hints ? JSON.stringify({ phrase_hints: hints }) : "{}" });
+        var abort = new AbortController();
+        var timeoutId = setTimeout(function () { abort.abort(); }, 300000);
+        var r;
+        try {
+          r = await fetch(API + "/projects/" + id + "/analyze?" + query, { method: "POST", headers: { "Content-Type": "application/json" }, body: hints ? JSON.stringify({ phrase_hints: hints }) : "{}", signal: abort.signal });
+        } catch (e) {
+          clearTimeout(timeoutId);
+          if (e.name === "AbortError") throw new Error("Détection trop longue (timeout 5 min). Réessaie avec un extrait plus court.");
+          throw e;
+        }
+        clearTimeout(timeoutId);
         var data = await r.json();
         if (!r.ok) throw new Error(data.detail || "Erreur");
-        var wc = document.getElementById("lyrics-words");
-        if (data.segments && data.segments.length && wc) {
+        if (data.segments && data.segments.length) {
           currentSegments = data.segments;
           currentPhrases = groupIntoPhrases(currentSegments);
-          wc.innerHTML = data.segments.map(function (w, i) {
-            return '<span class="word-box-wrap" data-segment-index="' + i + '"><span class="word-box" contenteditable="true" spellcheck="false">' + escapeHtml(w.text || "") + '</span></span>';
-          }).join(" ");
-          wc.classList.remove("hidden");
-          startPreview();
-          refreshCaptionsTable();
+          if (isAppNewUI()) {
+            var container = document.getElementById("lyrics-phrases");
+            var cardRender = document.getElementById("card-render");
+            if (container) {
+              container.innerHTML = "";
+              for (var i = 0; i < currentPhrases.length; i++) {
+                var phraseText = currentPhrases[i].map(function (x) { return (currentSegments[x.idx] && currentSegments[x.idx].text) || ""; }).join(" ").trim();
+                var ta = document.createElement("textarea");
+                ta.className = "app-phrase-line";
+                ta.setAttribute("wrap", "soft");
+                ta.setAttribute("data-phrase-idx", String(i));
+                ta.placeholder = "Phrase " + (i + 1);
+                ta.value = phraseText;
+                container.appendChild(ta);
+                ta.addEventListener("input", function () { resizePhraseLine(ta); });
+                ta.addEventListener("paste", function () { setTimeout(function () { resizePhraseLine(ta); }, 0); });
+                requestAnimationFrame(function () { resizePhraseLine(ta); });
+              }
+              requestAnimationFrame(function () {
+                resizeAllPhraseLines();
+                setTimeout(resizeAllPhraseLines, 50);
+              });
+            }
+            if (cardRender) cardRender.classList.remove("hidden");
+            startPreview();
+          } else {
+            var wc = document.getElementById("lyrics-words");
+            if (wc) {
+              wc.innerHTML = data.segments.map(function (w, i) {
+                return '<span class="word-box-wrap" data-segment-index="' + i + '"><span class="word-box" contenteditable="true" spellcheck="false">' + escapeHtml(w.text || "") + '</span></span>';
+              }).join(" ");
+              wc.classList.remove("hidden");
+            }
+            startPreview();
+            refreshCaptionsTable();
+          }
         }
         var engineLabels = {
+          "audioshake": "AudioShake (qualité pro)",
           "assemblyai": "AssemblyAI Pro + Demucs",
+          "azure": "Azure Speech",
+          "heartmula": "HeartMuLa",
           "whisper": "Whisper (local)"
         };
         var lbl = engineLabels[data.engine] || data.engine;

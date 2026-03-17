@@ -3,24 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SaaS Visu — Ton monteur de visualizers intelligent</title>
+  <title>SaaS Visu — Lyric videos</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-  <canvas id="particles" class="particles-canvas"></canvas>
-  <nav class="nav">
-    <a href="#accueil" class="nav-logo">SaaS Visu</a>
-    <div class="nav-links">
-      <a href="#accueil">Accueil</a>
-      <a href="#app">Le produit</a>
-      <a href="#tarifs">Tarifs</a>
-      <a href="#pourquoi">Pourquoi nous</a>
-      <a href="#step-1" class="nav-cta">Créer un visualizer</a>
-      <span class="credits-badge" id="credits-badge" title="Crédits restants"></span>
-    </div>
-  </nav>
+<body class="app-body">
+  <header class="app-header">
+    <span class="app-logo">SaaS Visu</span>
+    <div class="app-header-center">ATTENTION AUX CREDITS API AUDIOSHAKE CA COUTE CHER TOUT SES MORTS CONNARD</div>
+    <span class="credits-badge" id="credits-badge" title="Crédits">—</span>
+  </header>
 
-  <!-- MODAL CREDITS -->
   <div class="modal-overlay hidden" id="credits-modal">
     <div class="modal-card">
       <h2 class="modal-title">Choisis ton plan</h2>
@@ -45,389 +37,119 @@
     </div>
   </div>
 
-  <div class="page">
-
-    <!-- HERO -->
-    <section id="accueil" class="hero anim-reveal">
-      <h1 class="hero-title">
-        <span class="hero-title-line anim-word">SaaS Visu</span>
-        <span class="hero-tagline anim-word">Ton monteur de visualizers intelligent</span>
-      </h1>
-      <p class="hero-lead anim-fade">Lyric videos pro en quelques clics. Dépose ton son, on s'occupe des paroles et du rendu.</p>
-      <ul class="hero-perks">
-        <li class="anim-slide-right"><span class="perk-icon">⚡</span> Détection automatique des paroles</li>
-        <li class="anim-slide-right"><span class="perk-icon">🎨</span> 15+ animations de texte générées</li>
-        <li class="anim-slide-right"><span class="perk-icon">🚀</span> Export MP4 HD prêt pour tous les réseaux</li>
-      </ul>
-      <a href="#step-1" class="btn btn-glow btn-hero">Créer mon visualizer</a>
+  <main class="app-main">
+    <!-- Dropzone unique : 2 fichiers (vidéo/image + audio) -->
+    <section class="app-card app-card-drop">
+      <h2 class="app-card-title">Fichiers</h2>
+      <p class="app-card-sub">Vidéo ou image + fichier audio</p>
+      <div class="app-dropzone" id="dropzone-main">
+        <input type="file" id="input-files" accept=".mp3,.wav,.m4a,.ogg,.flac,.jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" multiple class="app-dropzone-input">
+        <span class="app-dropzone-icon">🎬</span>
+        <span class="app-dropzone-title">Dépose ta vidéo ou image et ton audio</span>
+        <span class="app-dropzone-sub">ou clique pour choisir — 1 ou 2 fichiers (audio + vidéo/image)</span>
+        <span class="app-dropzone-files" id="dropzone-filenames"></span>
+      </div>
+      <p id="upload-status" class="app-feedback"></p>
     </section>
 
-    <!-- PRODUIT : FORMATS + VIGNETTES -->
-    <section id="app" class="formats-showcase anim-reveal">
-      <h2 class="section-title anim-word">Tous les formats, toutes les plateformes</h2>
-      <p class="section-sub anim-fade">Un seul projet, adapté partout. Choisis ton format et exporte.</p>
-      <div class="vignettes-grid">
-        <div class="vignette anim-slide-up" data-format="16:9">
-          <div class="vignette-screen vignette-landscape">
-            <div class="vignette-bar"></div>
-            <span class="vignette-text">Tes paroles ici</span>
-          </div>
-          <div class="vignette-info">
-            <span class="vignette-ratio">16:9</span>
-            <span class="vignette-platform">YouTube · Clips · Desktop</span>
-          </div>
-        </div>
-        <div class="vignette anim-slide-up" data-format="9:16">
-          <div class="vignette-screen vignette-portrait">
-            <div class="vignette-bar"></div>
-            <span class="vignette-text">Tes paroles ici</span>
-          </div>
-          <div class="vignette-info">
-            <span class="vignette-ratio">9:16</span>
-            <span class="vignette-platform">TikTok · Reels · Stories</span>
-          </div>
-        </div>
-        <div class="vignette anim-slide-up" data-format="1:1">
-          <div class="vignette-screen vignette-square">
-            <div class="vignette-bar"></div>
-            <span class="vignette-text">Tes paroles ici</span>
-          </div>
-          <div class="vignette-info">
-            <span class="vignette-ratio">1:1</span>
-            <span class="vignette-platform">Instagram · X · Feed</span>
-          </div>
-        </div>
+    <!-- Détection -->
+    <section class="app-card app-card-detect">
+      <div class="app-detect-row">
+        <button type="button" id="btn-detect-lyrics" class="app-btn app-btn-primary">Détecter les paroles</button>
+        <label class="app-select-wrap">
+          <span class="app-label">Modèle</span>
+          <select id="select-engine"></select>
+        </label>
       </div>
-      <div class="formats-extra anim-fade">
-        <div class="extra-badge">MP4 · H.264</div>
-        <div class="extra-badge">720p / 1080p</div>
-        <div class="extra-badge">Polices illimitées</div>
-        <div class="extra-badge">20+ effets texte</div>
-        <div class="extra-badge">15 animations lyrics</div>
-      </div>
+      <p id="sync-status" class="app-feedback"></p>
     </section>
 
-    <p id="project-badge" class="badge"></p>
-
-    <!-- ÉTAPES PLEIN ÉCRAN -->
-    <div id="steps-container" class="steps-container">
-
-      <!-- ÉTAPE 1 -->
-      <section id="step-1" class="fullstep" data-step="1">
-        <div class="fullstep-inner">
-          <div class="step-indicator">
-            <span class="step-dot active"></span>
-            <span class="step-dot"></span>
-            <span class="step-dot"></span>
-          </div>
-          <h2 class="fullstep-title">1 · Tes fichiers</h2>
-          <p class="fullstep-sub">Dépose ton audio et ton fond (optionnel). On part de là.</p>
-          <div class="drop-row">
-            <div class="dropzone" id="dropzone-audio">
-              <input type="file" id="input-audio" accept=".mp3,.wav,.m4a" class="dropzone-input">
-              <span class="dropzone-icon">🎵</span>
-              <span class="dropzone-title">Audio</span>
-              <span class="dropzone-sub">Clique ou dépose</span>
-              <span class="dropzone-file" id="audio-filename"></span>
-            </div>
-            <div class="dropzone" id="dropzone-background">
-              <input type="file" id="input-background" accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" class="dropzone-input">
-              <span class="dropzone-icon">🖼️</span>
-              <span class="dropzone-title">Fond</span>
-              <span class="dropzone-sub">Clique ou dépose (optionnel)</span>
-              <span class="dropzone-file" id="background-filename"></span>
-            </div>
-          </div>
-          <p id="upload-status" class="feedback"></p>
-          <div id="excerpt-panel" class="excerpt-panel hidden">
-            <p class="fullstep-hint">Choisis un extrait de 20 s pour la détection.</p>
-            <div class="excerpt-row">
-              <label><span class="label-text">Début (s)</span><input type="number" id="excerpt-start" min="0" step="0.5" value="0"></label>
-              <label><span class="label-text">Durée (s)</span><input type="number" id="excerpt-duration" min="1" max="120" value="20"></label>
-              <button type="button" id="btn-apply-excerpt" class="btn btn-sm">Appliquer</button>
-            </div>
-            <p id="excerpt-status" class="feedback"></p>
-          </div>
-          <button type="button" class="btn btn-glow btn-next" data-goto="step-2">Étape suivante →</button>
+    <!-- Rendu : paroles (gauche) + prévisualisation (droite) -->
+    <section class="app-card app-card-render hidden" id="card-render">
+      <h2 class="app-card-title">Rendu</h2>
+      <div class="app-render-grid">
+        <div class="app-lyrics-col">
+          <h3 class="app-lyrics-title">Paroles <span class="app-lyrics-hint">(1 phrase par ligne, modifiable)</span></h3>
+          <div id="lyrics-phrases" class="app-lyrics-phrases"></div>
         </div>
-      </section>
-
-      <!-- ÉTAPE 2 -->
-      <section id="step-2" class="fullstep" data-step="2">
-        <div class="fullstep-inner">
-          <div class="step-indicator">
-            <span class="step-dot done"></span>
-            <span class="step-dot active"></span>
-            <span class="step-dot"></span>
-          </div>
-          <h2 class="fullstep-title">2 · Détection intelligente</h2>
-          <p class="fullstep-sub">Le moteur analyse l'audio et synchronise chaque mot. Tu peux tout modifier après.</p>
-          <div class="action-row">
-            <label id="engine-select-wrap" class="select-wrap">
-              <span class="label-text">Moteur</span>
-              <select id="select-engine">
-                <option value="assemblyai">AssemblyAI Pro + Demucs (recommandé)</option>
-                <option value="whisper">Whisper (local)</option>
-              </select>
-            </label>
-            <button type="button" id="btn-detect-lyrics" class="btn btn-glow">Détecter les paroles</button>
-            <button type="button" id="btn-detect-beats" class="btn btn-secondary">Détecter les beats</button>
-            <span id="engine-badge" class="engine-badge" aria-hidden="true"></span>
-          </div>
-          <p id="sync-status" class="feedback"></p>
-          <p id="beats-status" class="feedback"></p>
-          <div class="lyrics-card">
-            <div id="lyrics-words" class="lyrics-words hidden">
-              <p class="lyrics-words-placeholder">Détecte les paroles. Tu peux modifier le texte dans chaque mot.</p>
-            </div>
-          </div>
-          <details id="whisper-options" class="options-details hidden">
-            <summary>Options Whisper</summary>
-            <div class="options-inner">
-              <label>Modèle <select id="select-whisper-model">
-                <option value="base">Base (rapide)</option>
-                <option value="small">Small</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
-                <option value="large-v3" selected>Large v3</option>
-              </select></label>
-            </div>
-          </details>
-          <div class="step-nav-row">
-            <button type="button" class="btn btn-secondary btn-prev" data-goto="step-1">← Retour</button>
-            <button type="button" class="btn btn-glow btn-next" data-goto="step-3">Étape suivante →</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ÉTAPE 3 -->
-      <section id="step-3" class="fullstep" data-step="3">
-        <div class="fullstep-inner">
-          <div class="step-indicator">
-            <span class="step-dot done"></span>
-            <span class="step-dot done"></span>
-            <span class="step-dot active"></span>
-          </div>
-          <h2 class="fullstep-title">3 · Rendu interactif</h2>
-          <p class="fullstep-sub">Vue studio : extrait, captions et rendu visuel synchronisés.</p>
-
-          <div class="studio-timeline">
-            <div class="studio-timeline-top">
-              <div class="studio-selected">
-                <span class="studio-selected-label" id="studio-selected-range">Extrait : piste complète</span>
-                <span class="studio-selected-hint">Basé sur l'extrait audio appliqué à l'étape 1.</span>
-              </div>
-            </div>
-            <div class="studio-wave">
-              <div class="studio-wave-bg"></div>
-              <div class="studio-wave-window" id="studio-wave-window"></div>
-            </div>
-          </div>
-
-          <!-- CAROUSEL ANIMATIONS LYRICS -->
-          <div class="anim-carousel" id="anim-carousel">
-            <p class="anim-carousel-title">Animation des paroles</p>
-            <div class="anim-stage">
-              <div class="anim-stage-bg"></div>
-              <span class="anim-demo-text" id="anim-demo-text">Tes paroles prennent vie</span>
-            </div>
-            <div class="anim-carousel-controls">
-              <button type="button" class="anim-carousel-btn" id="anim-prev" aria-label="Précédent">‹</button>
-              <span class="anim-carousel-label" id="anim-label">Fade In</span>
-              <button type="button" class="anim-carousel-btn" id="anim-next" aria-label="Suivant">›</button>
-            </div>
-            <div class="anim-carousel-dots" id="anim-dots"></div>
-            <div class="anim-carousel-actions">
-              <button type="button" class="btn btn-sm btn-secondary" id="anim-shuffle">Aléatoire</button>
-              <button type="button" class="btn btn-sm btn-glow" id="anim-apply">Appliquer au rendu</button>
-            </div>
-            <p class="anim-selected-label" id="anim-selected-label"></p>
-          </div>
-
-          <div class="render-controls">
-            <div class="ctrl-group">
-              <label><span class="label-text">Format</span>
-                <div class="format-pills">
-                  <button type="button" class="pill pill-active" data-ratio="16:9">16:9</button>
-                  <button type="button" class="pill" data-ratio="9:16">9:16</button>
-                  <button type="button" class="pill" data-ratio="1:1">1:1</button>
-                </div>
-              </label>
-              <label><span class="label-text">Résolution</span>
-                <div class="format-pills">
-                  <button type="button" class="pill pill-active" data-res="720p">720p</button>
-                  <button type="button" class="pill" data-res="1080p">1080p</button>
-                </div>
-              </label>
-            </div>
-            <div class="ctrl-group">
-              <label><span class="label-text">Police</span><select id="select-font"></select></label>
-              <label><span class="label-text">Effet</span><select id="select-effect"></select></label>
-              <label><span class="label-text">Taille</span><input type="range" id="input-font-size" min="16" max="100" value="48"><span id="font-size-val" class="range-val">48</span></label>
-            </div>
-            <div class="ctrl-group">
-              <label class="color-label"><span class="label-text">Couleur</span><input type="color" id="input-text-color" value="#FFFFFF"></label>
-              <label><span class="label-text">Position</span>
-                <div class="format-pills">
-                  <button type="button" class="pill" data-pos="top">Haut</button>
-                  <button type="button" class="pill pill-active" data-pos="center">Centre</button>
-                  <button type="button" class="pill" data-pos="bottom">Bas</button>
-                  <button type="button" class="pill pill-drag" data-pos="drag" title="Place avec la souris">🖱️</button>
-                </div>
-              </label>
-            </div>
-            <div class="ctrl-group">
-              <label><span class="label-text">Affichage paroles</span>
-                <div class="format-pills">
-                  <button type="button" class="pill pill-active" data-display="mot">Mot par mot</button>
-                  <button type="button" class="pill" data-display="accumulation">Accumulation</button>
-                  <button type="button" class="pill" data-display="ligne">Ligne complète</button>
-                  <button type="button" class="pill" data-display="scroll">2 lignes</button>
-                </div>
-              </label>
-            </div>
-            <input type="hidden" id="select-ratio" value="16:9">
-            <input type="hidden" id="select-resolution" value="720p">
-            <input type="hidden" id="select-position" value="center">
-            <input type="hidden" id="select-display" value="mot">
-            <div class="ctrl-group">
-              <label><span class="label-text">Effet beats</span>
-                <div class="format-pills">
-                  <button type="button" class="pill pill-active" data-beat="none">Aucun</button>
-                  <button type="button" class="pill" data-beat="flash">Flash</button>
-                  <button type="button" class="pill" data-beat="zoom">Zoom</button>
-                  <button type="button" class="pill" data-beat="shake">Shake</button>
-                </div>
-              </label>
-              <input type="hidden" id="select-beat-effect" value="none">
-            </div>
-            <div class="ctrl-group preset-row">
-              <label><span class="label-text">Preset</span>
-                <select id="select-preset"><option value="">— Aucun —</option></select>
-              </label>
-              <button type="button" class="btn btn-sm btn-secondary" id="btn-save-preset">Sauvegarder ce style</button>
-            </div>
-          </div>
-
-          <div class="captions-panel">
-            <div class="captions-header">
-              <h3 class="captions-title">Captions</h3>
-              <p class="captions-sub">Aperçu des paroles synchronisées pour l'extrait sélectionné.</p>
-            </div>
-            <div class="captions-table-wrap">
-              <table class="captions-table" id="captions-table">
-                <thead>
-                  <tr>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Lyrics</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- rempli par JS -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="preview-area" class="preview-area hidden">
-            <div class="preview-stage" id="preview-stage">
+        <div class="app-preview-col">
+          <div id="preview-area" class="app-preview-area">
+            <div class="app-preview-stage" id="preview-stage" data-ratio="16:9">
               <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
               <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
               <div class="beat-overlay"></div>
-              <div id="preview-overlay" class="preview-overlay"></div>
+              <div id="preview-overlay" class="preview-overlay preview-pos-center"></div>
             </div>
-            <audio id="preview-audio" controls class="preview-audio"></audio>
+            <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : il s’aimante au centre en relâchant.</p>
+            <audio id="preview-audio" controls class="app-preview-audio"></audio>
           </div>
-          <div class="export-row">
-            <button type="button" id="btn-export" class="btn btn-glow btn-export">Exporter la vidéo</button>
-            <p id="render-status" class="feedback"></p>
-          </div>
-          <div id="post-export" class="post-export hidden">
-            <a id="link-download" href="#" download class="btn btn-download">Télécharger le MP4</a>
-          </div>
-          <div id="remix-panel" class="remix-panel hidden">
-            <h3 class="remix-title">Remix</h3>
-            <p class="remix-sub">Même paroles, nouveau style. Un clic = nouvelle variation.</p>
-            <div class="remix-actions">
-              <select id="remix-preset"><option value="">Aléatoire</option></select>
-              <button type="button" class="btn btn-glow btn-remix" id="btn-remix">Remixer</button>
-            </div>
-            <p id="remix-status" class="feedback"></p>
-            <span id="remix-count" class="remix-count"></span>
-          </div>
-          <button type="button" class="btn btn-secondary btn-prev" data-goto="step-2">← Retour</button>
-        </div>
-      </section>
-
-    </div><!-- /steps-container -->
-
-    <!-- TARIFS -->
-    <section id="tarifs" class="section-block anim-reveal">
-      <h2 class="section-title anim-word">Tarifs</h2>
-      <p class="section-sub anim-fade">Choisis la formule qui te correspond. Sans engagement.</p>
-      <div class="tarifs-grid">
-        <div class="tarif-card anim-slide-up">
-          <h3 class="tarif-name">Découverte</h3>
-          <p class="tarif-price"><span class="tarif-amount">0 €</span> / mois</p>
-          <ul class="tarif-features"><li>1 projet à la fois</li><li>Export 720p</li><li>Whisper</li></ul>
-          <a href="#step-1" class="btn btn-secondary tarif-btn">Commencer</a>
-        </div>
-        <div class="tarif-card tarif-featured anim-slide-up">
-          <span class="tarif-badge">Recommandé</span>
-          <h3 class="tarif-name">Pro</h3>
-          <p class="tarif-price"><span class="tarif-amount">9 €</span> / mois</p>
-          <ul class="tarif-features"><li>Projets illimités</li><li>Export 1080p</li><li>HeartMuLa</li><li>Support prioritaire</li></ul>
-          <a href="#step-1" class="btn btn-glow tarif-btn">Choisir Pro</a>
-        </div>
-        <div class="tarif-card anim-slide-up">
-          <h3 class="tarif-name">Studio</h3>
-          <p class="tarif-price"><span class="tarif-amount">29 €</span> / mois</p>
-          <ul class="tarif-features"><li>Tout Pro</li><li>Rendu batch</li><li>API dédiée</li><li>Facturation sur mesure</li></ul>
-          <a href="#step-1" class="btn btn-secondary tarif-btn">Nous contacter</a>
         </div>
       </div>
-    </section>
 
-    <!-- POURQUOI NOUS -->
-    <section id="pourquoi" class="section-block anim-reveal">
-      <h2 class="section-title anim-word">Pourquoi SaaS Visu ?</h2>
-      <p class="section-sub anim-fade">Un outil pensé pour les artistes. Pas un gadget.</p>
-      <div class="why-grid">
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">⚡</span>
-          <h3 class="why-title">Rapidité</h3>
-          <p class="why-desc">De l'upload à l'export en quelques minutes. Pas d'attente, pas de serveur distant. Tout tourne en local.</p>
+      <input type="hidden" id="select-position" value="center">
+      <input type="hidden" id="select-display" value="mot">
+      <input type="hidden" id="select-effect" value="neon">
+      <input type="hidden" id="select-ratio" value="16:9">
+      <input type="hidden" id="select-resolution" value="720p">
+      <input type="hidden" id="select-beat-effect" value="none">
+
+      <div class="app-style-section">
+        <h3 class="app-style-section-title">Style du texte</h3>
+        <div class="app-style-block">
+          <div class="app-style-item">
+            <span class="app-options-title">Effet</span>
+            <div class="app-effect-pills">
+              <button type="button" class="app-pill app-pill-effect active" data-effect="neon">Néon</button>
+              <button type="button" class="app-pill app-pill-effect" data-effect="elegant">Fantaisie</button>
+              <button type="button" class="app-pill app-pill-effect" data-effect="ombre">Ombre</button>
+            </div>
+          </div>
+          <div class="app-style-item">
+            <span class="app-options-title">Police</span>
+            <select id="select-font"></select>
+          </div>
+          <div class="app-style-item">
+            <span class="app-options-title">Couleur</span>
+            <input type="color" id="input-text-color" value="#FFFFFF" class="app-color-input">
+          </div>
+          <div class="app-style-item app-style-item-size">
+            <span class="app-options-title">Taille</span>
+            <div class="app-size-row">
+              <input type="range" id="input-font-size" min="24" max="96" value="48" class="app-range">
+              <span id="font-size-val" class="app-range-val">48</span>
+            </div>
+          </div>
         </div>
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">🎯</span>
-          <h3 class="why-title">Précision</h3>
-          <p class="why-desc">HeartMuLa synchronise chaque syllabe. Tu peux ajuster mot par mot. Le résultat est toujours calé sur le beat.</p>
-        </div>
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">🎨</span>
-          <h3 class="why-title">Créativité</h3>
-          <p class="why-desc">15 animations de texte, 20+ effets, polices illimitées. Chaque visualizer est unique et reflète ton style.</p>
-        </div>
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">📱</span>
-          <h3 class="why-title">Multi-plateforme</h3>
-          <p class="why-desc">Un clic pour passer du 16:9 au 9:16. YouTube, TikTok, Reels, Stories — tout est couvert.</p>
-        </div>
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">🔒</span>
-          <h3 class="why-title">Confidentialité</h3>
-          <p class="why-desc">Tes fichiers restent sur ton appareil. Aucune donnée envoyée. Ton son, tes paroles, ta propriété.</p>
-        </div>
-        <div class="why-card anim-slide-up">
-          <span class="why-icon">🚀</span>
-          <h3 class="why-title">Pro sans effort</h3>
-          <p class="why-desc">Pas besoin de savoir monter. L'outil fait le travail technique. Toi, tu te concentres sur la musique.</p>
+        <div class="app-style-block">
+          <div class="app-style-item">
+            <span class="app-options-title">Défilement</span>
+            <div class="app-display-pills">
+              <button type="button" class="app-pill app-pill-display active" data-display="mot">Mot par mot</button>
+              <button type="button" class="app-pill app-pill-display" data-display="ligne">Phrase par phrase</button>
+            </div>
+          </div>
+          <div class="app-style-item">
+            <span class="app-options-title">Position</span>
+            <div class="app-position-pills">
+              <button type="button" class="app-pill app-pill-pos" data-pos="top">Haut</button>
+              <button type="button" class="app-pill app-pill-pos active" data-pos="center">Centre</button>
+              <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
+              <button type="button" class="app-pill app-pill-pos" data-pos="drag" title="Déplacer à la souris (aimant centre)">Déplacer</button>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
 
-  </div>
+      <div class="app-export-row">
+        <button type="button" id="btn-export" class="app-btn app-btn-primary app-btn-export">Exporter la vidéo</button>
+        <p id="render-status" class="app-feedback"></p>
+      </div>
+      <div id="post-export" class="app-post-export hidden">
+        <a id="link-download" href="#" download class="app-btn app-btn-download">Télécharger le MP4</a>
+      </div>
+    </section>
+  </main>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
