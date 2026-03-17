@@ -22,7 +22,7 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 | API REST (créer projet, upload audio, **upload fond**, sync, render, download) | OK |
 | Templates (style des paroles) | OK (3 templates : 16:9, 9:16, 1:1) |
 | Documentation et workflow | OK : docs (voir [docs/README.md](docs/README.md)), [WORKFLOW_COLLABORATION.md](WORKFLOW_COLLABORATION.md), [AGENTS.md](AGENTS.md) pour les agents IA |
-| **Détection auto des paroles** | OK : bouton « Détecter les paroles automatiquement » (Whisper, mot par mot) |
+| **Détection auto des paroles** | OK : Whisper, HeartMuLa (WaveSpeed ou local), Azure ; calage timestamps via Deepgram (optionnel, rapide) ou faster-whisper (local) |
 | **Affichage mot par mot + effets** | OK : texte synchronisé au chant, choix de police et effet (contour, ombre, gras, etc.) |
 | **Fond adapté au format** | OK : image/vidéo de fond recadrée pour remplir le format choisi (16:9, 9:16, 1:1) |
 | **Interface web statique** | OK : `static/` (index.html, app.js, style.css) — upload, extrait audio, détection paroles, preview, export |
@@ -48,4 +48,4 @@ Sortie : une vidéo (MP4) avec le fond photo/vidéo + les paroles qui s’affich
 
 ---
 
-*Dernière mise à jour : implémentation templates, remix, cut-point effects (beats), crédits locaux.*
+*Dernière mise à jour : option Deepgram pour calage paroles rapide (DEEPGRAM_API_KEY), frontières segments continues (aligner).*

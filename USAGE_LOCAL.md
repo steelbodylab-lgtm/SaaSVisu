@@ -2,7 +2,7 @@
 
 Pas d’interface web, pas d’API à lancer : tout se fait en ligne de commande depuis le dossier du projet.
 
-**Alternative :** tu peux aussi lancer l’API (`python -m saasvisu.web_api.main`) et ouvrir **http://localhost:8000** pour une interface avec boutons d’upload et lecteur vidéo (voir README).
+**Alternative :** tu peux aussi lancer l’API (`python -m saasvisu.web_api.main`) et ouvrir [http://localhost:8000](http://localhost:8000) pour une interface avec boutons d’upload et lecteur vidéo (voir README).
 
 ---
 

@@ -35,9 +35,13 @@ def extract_word_timestamps(
     audio_path: str | Path,
     model_name: str = "large-v3",
     language: str = "fr",
+    *,
+    vad_filter: bool = False,
+    initial_prompt: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Transcrit l'audio avec faster-whisper et retourne les mots avec timestamps précis.
+    vad_filter=False par défaut pour ne pas rater de paroles (chant, musique).
     Retourne : [{"text": "mot", "start_time_ms": 1234, "end_time_ms": 1567}, ...]
     """
     audio_path = Path(audio_path)
@@ -47,14 +51,16 @@ def extract_word_timestamps(
     print(f"[faster-whisper] Chargement modèle {model_name}…", flush=True)
     model = _get_model(model_name)
 
-    print(f"[faster-whisper] Extraction timestamps ({model_name}, {language})…", flush=True)
-    segments, info = model.transcribe(
-        str(audio_path),
+    print(f"[faster-whisper] Extraction timestamps ({model_name}, {language}, vad_filter={vad_filter})…", flush=True)
+    opts = dict(
         language=language,
         word_timestamps=True,
         beam_size=5,
-        vad_filter=True,
+        vad_filter=vad_filter,
     )
+    if initial_prompt:
+        opts["initial_prompt"] = initial_prompt
+    segments, info = model.transcribe(str(audio_path), **opts)
 
     words = []
     for segment in segments:

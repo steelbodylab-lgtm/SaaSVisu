@@ -183,6 +183,15 @@ def align_heartmula_on_whisper(
             result[idx]["start_time_ms"] = s
             result[idx]["end_time_ms"] = min(e, next_start)
 
+    # Frontières continues : pas de trou ni chevauchement (meilleur calage temps réel)
+    if len(result) > 1:
+        for i in range(len(result) - 1):
+            curr_end = result[i]["end_time_ms"]
+            next_start = result[i + 1]["start_time_ms"]
+            if next_start < curr_end:
+                result[i + 1]["start_time_ms"] = curr_end
+            result[i]["end_time_ms"] = result[i + 1]["start_time_ms"]
+
     _p(f"Alignement terminé : {len(result)} mots avec timestamps.")
     return result
 

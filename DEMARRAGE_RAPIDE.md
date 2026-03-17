@@ -56,11 +56,11 @@ Tu dois voir quelque chose comme :
 ## 4. Ouvrir l’interface dans le navigateur
 
 - Ouvre ton navigateur.
-- Va sur : **http://localhost:8000**
+- Va sur : [http://localhost:8000](http://localhost:8000)
 
 Tu verras la page avec les boutons (créer projet, upload audio, fond, paroles, synchro, rendu) et le lecteur vidéo.
 
-- **Documentation de l’API (Swagger)** : http://localhost:8000/docs
+- **Documentation de l’API (Swagger)** : [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
@@ -82,7 +82,7 @@ git pull origin master
 .\run.ps1
 ```
 
-Puis ouvre **http://localhost:8000** dans le navigateur.
+Puis ouvre [http://localhost:8000](http://localhost:8000) dans le navigateur.
 
 ---
 

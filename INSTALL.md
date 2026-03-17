@@ -54,7 +54,7 @@ dir projects
 - Sans activation : `.\venv\Scripts\python.exe -m saasvisu.web_api.main`
 - Ou double-clic sur `scripts\dev_start.bat`
 
-Puis ouvre **http://localhost:8000** et **http://localhost:8000/docs** (Swagger).
+Puis ouvre [http://localhost:8000](http://localhost:8000) et [http://localhost:8000/docs](http://localhost:8000/docs) (Swagger).
 
 ## 5. Workflow complet (CLI)
 

@@ -1,19 +1,18 @@
 # Saas Visu — dépendances Python
-# Phase 1 : core minimal
+# Core
 pydub>=0.25.1
 python-dotenv>=1.0.0
-# Phase 2 : API web
+# API web
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 requests>=2.28.0
-# Rendu vidéo (optionnel, FFmpeg en CLI d'abord)
-# ffmpeg-python>=0.2.0
-# Synchro paroles / audio (Whisper)
-openai-whisper>=20231117
-# Timestamps rapides (4x plus rapide que Whisper, CTranslate2)
+# Transcription + calage pro (moteur principal)
+assemblyai>=0.50.0
+# Séparation vocale (isole les voix de la musique avant transcription)
+demucs>=4.0.0
+# Whisper local (fallback)
 faster-whisper>=1.0.0
-# Azure Speech (optionnel, plan gratuit 5 h/mois)
-azure-cognitiveservices-speech>=1.31.0
+openai-whisper>=20231117
 # Beat detection
 librosa>=0.10.0

@@ -23,7 +23,7 @@ cd C:\Users\frede\saas-visu
 python -m saasvisu.web_api.main
 ```
 
-Puis ouvre **http://localhost:8000** dans le navigateur.  
+Puis ouvre [http://localhost:8000](http://localhost:8000) dans le navigateur.  
 Pour arrêter le serveur : **Ctrl+C**.
 
 ---

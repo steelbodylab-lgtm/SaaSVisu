@@ -553,17 +553,25 @@
       var opts = document.getElementById("whisper-options");
       if (sel) {
         sel.innerHTML = "";
-        if (data.heartmula_available) sel.appendChild(new Option(data.heartmula_local ? "HeartMuLa (local)" : "HeartMuLa", "heartmula"));
-        if (data.azure_available) sel.appendChild(new Option("Azure Speech", "azure"));
-        sel.appendChild(new Option("Whisper", "whisper"));
-        if (wrap) wrap.classList.toggle("hidden", !data.heartmula_available && !data.azure_available);
+        if (data.assemblyai_available) sel.appendChild(new Option("AssemblyAI Pro + Demucs (recommandé)", "assemblyai"));
+        sel.appendChild(new Option("Whisper (local)", "whisper"));
+        if (wrap) wrap.classList.remove("hidden");
       }
-      if (badge) { badge.textContent = data.heartmula_available ? "HeartMuLa" : (data.azure_available ? "Azure" : "Whisper"); badge.classList.toggle("whisper", !data.azure_available && !data.heartmula_available); }
-      if (opts) opts.classList.toggle("hidden", data.heartmula_available || data.azure_available);
+      if (badge) {
+        badge.textContent = data.assemblyai_available ? "AssemblyAI" : "Whisper";
+        badge.classList.toggle("whisper", !data.assemblyai_available);
+      }
+      if (opts) opts.classList.toggle("hidden", data.assemblyai_available);
     }).catch(function () {
       clearTimeout(tid);
       var badge = document.getElementById("engine-badge");
       var opts = document.getElementById("whisper-options");
+      var sel = document.getElementById("select-engine");
+      if (sel) {
+        sel.innerHTML = "";
+        sel.appendChild(new Option("AssemblyAI Pro + Demucs (recommandé)", "assemblyai"));
+        sel.appendChild(new Option("Whisper (local)", "whisper"));
+      }
       if (badge) { badge.textContent = "Whisper"; badge.classList.add("whisper"); }
       if (opts) opts.classList.remove("hidden");
     });
@@ -1155,9 +1163,8 @@
           refreshCaptionsTable();
         }
         var engineLabels = {
-          "heartmula": "HeartMuLa",
-          "azure": "Azure Speech",
-          "whisper": "Whisper"
+          "assemblyai": "AssemblyAI Pro + Demucs",
+          "whisper": "Whisper (local)"
         };
         var lbl = engineLabels[data.engine] || data.engine;
         setStatus("sync-status", data.words_count + " mots détectés — " + lbl + " ✓");

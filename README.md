@@ -38,7 +38,7 @@ Ou à la main : `python -m saasvisu.web_api.main`
 
 **Pour redémarrer** : dans le terminal où le serveur tourne, **Ctrl+C**, puis relancer `.\run.ps1`.
 
-Ouvre **http://localhost:8000** dans le navigateur.
+Ouvre [http://localhost:8001](http://localhost:8001) dans le navigateur.
 
 ---
 
@@ -48,7 +48,7 @@ Guide pas à pas en CLI : **USAGE_LOCAL.md**
 
 **Interface locale (recommandé pour tester)** : lance l’API puis ouvre le navigateur (voir ci‑dessus).
 
-Ouvre **http://localhost:8000** : une page avec boutons pour chaque étape (créer projet, upload audio, upload fond, paroles, synchro, rendu) et un lecteur vidéo pour le résultat.
+Ouvre [http://localhost:8001](http://localhost:8001) : une page avec boutons pour chaque étape (créer projet, upload audio, upload fond, paroles, synchro, rendu) et un lecteur vidéo pour le résultat.
 
 En bref :
 
@@ -67,6 +67,13 @@ La vidéo est dans **`projects\<id>\output.mp4`**.
 - **En dev** (gratuit) : dans `.env` mets `HEARTMULA_USE_LOCAL=1`, puis  
   `pip install -r requirements-heartmula-local.txt`. Le moteur « HeartMuLa (local, gratuit) » apparaît ; la première détection télécharge le modèle (~1 Go).
 - **En prod** : dans `.env` mets `WAVESPEED_API_KEY=ta_cle` (sans `HEARTMULA_USE_LOCAL`). L’app utilisera l’API WaveSpeed (~0,05 $ / transcription).
+
+## Moteur recommandé : AssemblyAI (reconnaissance + calage pro)
+
+Pour une **reconnaissance des paroles** et un **calage texte/audio** de niveau professionnel en un seul appel :
+
+- Dans `.env` ajoute **`ASSEMBLYAI_API_KEY=ta_cle`**. L'app proposera le moteur « AssemblyAI (pro, calage précis) » en premier.
+- Une seule requête = transcription + timestamps mot à mot. Référence : [AssemblyAI Pricing](https://www.assemblyai.com/pricing). Autres options : `DEEPGRAM_API_KEY`, HeartMuLa, Whisper (local).
 
 ## Structure
 

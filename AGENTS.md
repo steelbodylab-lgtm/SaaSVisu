@@ -50,6 +50,9 @@ Ce fichier permet aux agents de comprendre l’état du projet et comment travai
 3. **Répondre et documenter en français**.
 4. **Proposer des changements** cohérents avec la structure existante ; ne pas réorganiser inutilement les dossiers déjà en place.
 5. Après des changements importants (nouvelles features, refactos), mettre à jour **STATUS.md** (et ce fichier si besoin) pour que le prochain agent ou développeur reparte sur une base à jour.
+6. **Quand on demande à l’utilisateur de redémarrer le serveur**, toujours lui donner la commande exacte dans la réponse, par exemple :  
+   `cd "c:\Users\frede\OneDrive\Bureau\saas visu"; .\run.ps1`  
+   (ou avec uvicorn + --reload si pertinent). Ne jamais oublier d’envoyer le code/commande.
 
 ---
 
