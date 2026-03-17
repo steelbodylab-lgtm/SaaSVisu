@@ -37,8 +37,9 @@ class LyricsBody(BaseModel):
 
 
 class AnalyzeBody(BaseModel):
-    """Corps optionnel pour la détection de paroles."""
-    pass
+    """Corps optionnel pour la détection de paroles. Si start_seconds et duration_seconds sont renseignés, la détection et le calage se font uniquement sur cet extrait."""
+    start_seconds: float | None = None
+    duration_seconds: float | None = None
 
 
 class SyncSegmentsBody(BaseModel):
@@ -303,18 +304,47 @@ def run_sync(project_id: str, use_whisper: bool = False, whisper_model: str = "b
 def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = "", body: AnalyzeBody | None = None):
     """
     Détection automatique des paroles.
-    Moteur recommandé : AssemblyAI Universal-3 Pro + Demucs (séparation vocale).
-    Fallback : Whisper (local).
+    Si body.start_seconds et body.duration_seconds sont fournis, seule cette portion est analysée et l'audio du projet est remplacée par l'extrait.
     """
     from saasvisu.sync_engine.aligner import save_sync_json
     import os
+    import tempfile
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
         raise HTTPException(status_code=404, detail="Projet introuvable")
     audio_dir = project_path / "audio"
-    audio_file = next(audio_dir.glob("*"), None)
-    if not audio_file:
+    original_audio = next(audio_dir.glob("*"), None)
+    if not original_audio or not original_audio.is_file():
         raise HTTPException(status_code=400, detail="Aucun fichier audio dans le projet")
+
+    # Extraire l'extrait en fichier temporaire si demandé (détection + calage uniquement sur cet extrait)
+    use_excerpt = (
+        body is not None
+        and body.start_seconds is not None
+        and body.duration_seconds is not None
+        and body.duration_seconds > 0
+    )
+    audio_file = original_audio
+    if use_excerpt:
+        start_ms = int(body.start_seconds * 1000)
+        duration_ms = int(body.duration_seconds * 1000)
+        try:
+            from pydub import AudioSegment
+            seg = AudioSegment.from_file(str(original_audio))
+            total_ms = len(seg)
+            if start_ms >= total_ms:
+                start_ms = 0
+                duration_ms = total_ms
+            end_ms = min(start_ms + duration_ms, total_ms)
+            excerpt = seg[start_ms:end_ms]
+            suffix = (original_audio.suffix or ".mp3").lower()
+            fmt = "mp3" if suffix in (".mp3", ".m4a") else "wav"
+            with tempfile.NamedTemporaryFile(suffix=f".{fmt}", delete=False) as f:
+                excerpt.export(f.name, format=fmt)
+                audio_file = Path(f.name)
+            print(f"[analyze] Extrait utilisé : {body.start_seconds:.1f}s – {body.start_seconds + body.duration_seconds:.1f}s.", flush=True)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Extrait audio invalide : {e}") from e
 
     assemblyai_key = (os.environ.get("ASSEMBLYAI_API_KEY") or "").strip()
     audioshake_key = (os.environ.get("AUDIOSHAKE_API_KEY") or "").strip()
@@ -455,6 +485,19 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
     import json
     lines_for_json = [{"id": str(i), "text": s.get("text", "")} for i, s in enumerate(segments)]
     (project_path / "lyrics.json").write_text(json.dumps(lines_for_json, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Remplacer l'audio du projet par l'extrait si on a analysé uniquement cet extrait
+    if use_excerpt and audio_file != original_audio:
+        try:
+            import shutil
+            shutil.copy2(str(audio_file), str(original_audio))
+            print("[analyze] Audio du projet remplacé par l'extrait.", flush=True)
+        except Exception as e:
+            print(f"[analyze] Remplacement audio échoué: {e}", flush=True)
+        try:
+            audio_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     return {
         "ok": True,

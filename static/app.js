@@ -565,8 +565,12 @@
           var form = new FormData(); form.append("file", f);
           var r = await fetch(API + "/projects/" + id + "/audio", { method: "POST", body: form });
           var d = {}; try { d = JSON.parse(await r.text()); } catch (_) {}
-          if (r.ok) { uploadedAudioName = name; updateDropzoneDisplay(); setStatus("upload-status", "Audio enregistré."); }
-          else setStatus("upload-status", d.detail || "Erreur audio", true);
+          if (r.ok) {
+            uploadedAudioName = name;
+            updateDropzoneDisplay();
+            setStatus("upload-status", "Audio enregistré.");
+            if (d.duration_seconds > 0) showExcerptPanel(d.duration_seconds);
+          } else setStatus("upload-status", d.detail || "Erreur audio", true);
         } catch (e) { setStatus("upload-status", e.message, true); }
       } else if (t.indexOf("video") >= 0 || t.indexOf("image") >= 0) {
         setStatus("upload-status", "Envoi du fond…");
@@ -618,25 +622,37 @@
   function showExcerptPanel(dur) {
     var panel = document.getElementById("excerpt-panel");
     var si = document.getElementById("excerpt-start");
+    var di = document.getElementById("excerpt-duration");
+    var info = document.getElementById("excerpt-duration-info");
     if (!panel || !si) return;
-    if (dur > 0) { si.max = Math.max(0, dur - 1); si.placeholder = "0 à " + Math.floor(dur); }
+    if (dur > 0) {
+      si.max = Math.max(0, dur - 0.5);
+      si.placeholder = "0 à " + Math.floor(dur);
+      if (di) { di.max = dur; di.placeholder = "1 à " + Math.floor(dur); di.value = Math.min(60, Math.floor(dur)); }
+      if (info) info.textContent = "Durée totale : " + (Math.floor(dur * 10) / 10) + " s";
+    }
     panel.classList.remove("hidden");
   }
   async function applyExcerpt() {
     var id = projectId; if (!id) return;
     var start = parseFloat(document.getElementById("excerpt-start").value) || 0;
     var dur = parseFloat(document.getElementById("excerpt-duration").value) || 20;
-    if (dur <= 0 || dur > 120) dur = 20;
+    var di = document.getElementById("excerpt-duration");
+    var maxDur = di && di.max ? parseFloat(di.max) : 0;
+    if (dur <= 0) dur = 20;
+    if (maxDur > 0 && dur > maxDur) dur = maxDur;
     excerptInfo.start = start;
     excerptInfo.duration = dur;
-    updateStudioSelectedLabel();
-    updateStudioWaveWindow();
+    if (typeof updateStudioSelectedLabel === "function") updateStudioSelectedLabel();
+    if (typeof updateStudioWaveWindow === "function") updateStudioWaveWindow();
     setStatus("excerpt-status", "Application…");
     try {
       var r = await fetch(API + "/projects/" + id + "/audio/segment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start_seconds: start, duration_seconds: dur }) });
       var data = {}; try { data = JSON.parse(await r.text()); } catch (_) {}
-      if (r.ok) setStatus("excerpt-status", "Extrait appliqué.");
-      else setStatus("excerpt-status", data.detail || "Erreur", true);
+      if (r.ok) {
+        setStatus("excerpt-status", "Extrait appliqué. Tu peux lancer « Détecter les paroles » sur cet extrait.");
+        if (data.duration_seconds > 0) showExcerptPanel(data.duration_seconds);
+      } else setStatus("excerpt-status", data.detail || "Erreur", true);
     } catch (e) { setStatus("excerpt-status", e.message, true); }
   }
   async function uploadBackgroundFile(file) {
@@ -651,7 +667,7 @@
   }
 
   /* ======== OPTIONS ======== */
-  var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret" };
+  var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret",spotify:"Spotify",apple_music:"Apple Music",karaoke:"Karaoké",clip_pro:"Clip pro",luxe:"Luxe",editorial:"Editorial",disco:"Disco",holographique:"Holographique",bloc_impact:"Bloc impact",glow:"Glow",double_contour:"Double contour",cinema:"Cinéma",affiche:"Affiche",sobre_pro:"Sobre pro",brut:"Brut",script_luxe:"Script luxe",neon_fort:"Néon fort",contour_fluo:"Contour fluo",ombre_portee:"Ombre portée",titrage:"Titrage" };
   var APP_FONTS = ["Impact", "Georgia", "Broadway", "Stencil", "Ravie", "Vivaldi", "Brush Script MT", "Cooper Black", "Bodoni MT", "Magneto"];
   function fillDefaultOptions() {
     var fs = document.getElementById("select-font");
@@ -1403,18 +1419,19 @@
         var startEl = document.getElementById("excerpt-start");
         var durEl = document.getElementById("excerpt-duration");
         var start = (startEl && parseFloat(startEl.value)) || 0;
-        var dur = (durEl && parseFloat(durEl.value)) || 20;
-        // En nouvelle UI : pas d'extrait, on analyse l'audio en entier. Ancienne UI : appliquer l'extrait si renseigné.
-        if (!isAppNewUI() && dur > 0 && dur <= 120) {
-          setStatus("sync-status", "Application de l'extrait…");
-          var segR = await fetch(API + "/projects/" + id + "/audio/segment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start_seconds: start, duration_seconds: dur }) });
-          if (!segR.ok) { var err = {}; try { err = await segR.json(); } catch (_) {} throw new Error(err.detail || "Erreur extrait"); }
+        var dur = (durEl && parseFloat(durEl.value)) || 0;
+        // Corps de la requête : indices optionnels + extrait optionnel (détection et calage uniquement sur cet extrait)
+        var body = {};
+        var hints = getWordsFromBoxes().filter(Boolean).join(" ");
+        if (!hints && currentSegments) hints = currentSegments.map(function (s) { return s.text; }).join(" ");
+        if (hints) body.phrase_hints = hints;
+        if (dur > 0) {
+          body.start_seconds = start;
+          body.duration_seconds = dur;
         }
         var modelEl = document.getElementById("select-whisper-model");
         var model = modelEl ? modelEl.value : "large";
-        var hints = getWordsFromBoxes().filter(Boolean).join(" ");
-        if (!hints && currentSegments) hints = currentSegments.map(function (s) { return s.text; }).join(" ");
-        setStatus("sync-status", "Détection en cours… (peut prendre 1 à 2 min avec AudioShake/AssemblyAI, ne pas quitter la page)");
+        setStatus("sync-status", dur > 0 ? "Détection sur l'extrait indiqué… (peut prendre 1 à 2 min, ne pas quitter la page)" : "Détection en cours… (peut prendre 1 à 2 min avec AudioShake/AssemblyAI, ne pas quitter la page)");
         var engEl = document.getElementById("select-engine");
         var engine = (engEl && engEl.value) || "whisper";
         var query = "whisper_model=" + encodeURIComponent(model) + "&engine=" + encodeURIComponent(engine);
@@ -1422,7 +1439,7 @@
         var timeoutId = setTimeout(function () { abort.abort(); }, 300000);
         var r;
         try {
-          r = await fetch(API + "/projects/" + id + "/analyze?" + query, { method: "POST", headers: { "Content-Type": "application/json" }, body: hints ? JSON.stringify({ phrase_hints: hints }) : "{}", signal: abort.signal });
+          r = await fetch(API + "/projects/" + id + "/analyze?" + query, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: abort.signal });
         } catch (e) {
           clearTimeout(timeoutId);
           if (e.name === "AbortError") throw new Error("Détection trop longue (timeout 5 min). Réessaie avec un extrait plus court.");

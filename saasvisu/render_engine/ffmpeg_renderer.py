@@ -16,8 +16,9 @@ RESOLUTIONS = {
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
-# Large panel de polices (style CapCut / pro)
+# Polices existantes + premium / atypiques (installer les polices pour les utiliser)
 FONTS = [
+    # ——— Existantes ———
     "Arial", "Arial Black", "Georgia", "Impact", "Times New Roman", "Verdana",
     "Comic Sans MS", "Courier New", "Trebuchet MS", "Palatino Linotype",
     "Lucida Sans Unicode", "Tahoma", "Franklin Gothic Medium", "Segoe UI", "Consolas",
@@ -34,10 +35,24 @@ FONTS = [
     "Magneto", "Matura MT Script Capitals", "Mistral", "Modern No. 20",
     "Monotype Corsiva", "OCR B MT", "Old English Text MT", "Onyx", "Parchment",
     "Playbill", "Poor Richard", "Ravie", "Stencil", "Vivaldi", "Vladimir Script",
+    # ——— Premium / atypiques (qualité supérieure) ———
+    "Helvetica Neue", "Helvetica Neue Condensed Bold", "Futura", "Futura Condensed",
+    "Gill Sans", "Gill Sans MT", "Univers", "Univers Condensed",
+    "Akzidenz-Grotesk", "DIN Next", "DIN Condensed", "Gotham", "Gotham Bold",
+    "Proxima Nova", "Avenir Next", "Avenir Next Condensed",
+    "FF Meta", "FF Meta Condensed", "Neue Haas Grotesk", "Neue Haas Unica",
+    "Graphik", "National", "Clarendon", "Rockwell", "Rockwell Condensed",
+    "Trade Gothic", "News Gothic", "Franklin Gothic", "Alternate Gothic",
+    "Baskerville", "Caslon", "Didot", "Bodoni", "Minion Pro", "Myriad Pro",
+    "Chalet", "Chalet London", "House Gothic", "Blur", "Rosewood",
+    "Lithos Pro", "Trajan Pro", "Charlemagne", "Papyrus", "Optima",
+    "Serifa", "Melior", "Syntax", "Antique Olive", "Microgramma",
+    "Eurostile", "Bank Gothic",
 ]
 
-# Effets texte : outline, shadow (pixels), bold, italic. Large panel style CapCut
+# Effets texte : outline, shadow (pixels), bold, italic. Existants + premium / atypiques
 EFFECTS = {
+    # ——— Existants ———
     "minimal": {"outline": 0, "shadow": 0, "bold": 0, "italic": 0},
     "classique": {"outline": 2, "shadow": 1, "bold": 0, "italic": 0},
     "outline_fin": {"outline": 1, "shadow": 0, "bold": 0, "italic": 0},
@@ -58,6 +73,27 @@ EFFECTS = {
     "elegant": {"outline": 1, "shadow": 2, "bold": 0, "italic": 1},
     "retro": {"outline": 3, "shadow": 0, "bold": 1, "italic": 0},
     "discret": {"outline": 0, "shadow": 1, "bold": 0, "italic": 0},
+    # ——— Premium / atypiques (expérience variée) ———
+    "spotify": {"outline": 1, "shadow": 2, "bold": 0, "italic": 0},
+    "apple_music": {"outline": 0, "shadow": 3, "bold": 0, "italic": 0},
+    "karaoke": {"outline": 3, "shadow": 1, "bold": 1, "italic": 0},
+    "clip_pro": {"outline": 2, "shadow": 2, "bold": 1, "italic": 0},
+    "luxe": {"outline": 1, "shadow": 4, "bold": 0, "italic": 1},
+    "editorial": {"outline": 0, "shadow": 2, "bold": 1, "italic": 0},
+    "disco": {"outline": 2, "shadow": 4, "bold": 0, "italic": 0},
+    "holographique": {"outline": 2, "shadow": 5, "bold": 0, "italic": 0},
+    "bloc_impact": {"outline": 5, "shadow": 0, "bold": 1, "italic": 0},
+    "glow": {"outline": 0, "shadow": 5, "bold": 0, "italic": 0},
+    "double_contour": {"outline": 4, "shadow": 2, "bold": 0, "italic": 0},
+    "cinema": {"outline": 1, "shadow": 3, "bold": 1, "italic": 0},
+    "affiche": {"outline": 4, "shadow": 1, "bold": 1, "italic": 0},
+    "sobre_pro": {"outline": 0, "shadow": 1, "bold": 1, "italic": 0},
+    "brut": {"outline": 0, "shadow": 0, "bold": 1, "italic": 0},
+    "script_luxe": {"outline": 1, "shadow": 3, "bold": 0, "italic": 1},
+    "neon_fort": {"outline": 2, "shadow": 6, "bold": 0, "italic": 0},
+    "contour_fluo": {"outline": 3, "shadow": 2, "bold": 0, "italic": 0},
+    "ombre_portee": {"outline": 0, "shadow": 8, "bold": 0, "italic": 0},
+    "titrage": {"outline": 2, "shadow": 2, "bold": 1, "italic": 0},
 }
 
 

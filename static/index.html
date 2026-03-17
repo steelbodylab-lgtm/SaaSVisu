@@ -50,6 +50,24 @@
         <span class="app-dropzone-files" id="dropzone-filenames"></span>
       </div>
       <p id="upload-status" class="app-feedback"></p>
+
+      <div id="excerpt-panel" class="app-excerpt-panel hidden">
+        <h3 class="app-excerpt-title">Choisir un extrait (optionnel)</h3>
+        <p class="app-excerpt-sub">Réduis la charge : ne garde qu’une partie du son pour la détection et le rendu.</p>
+        <p id="excerpt-duration-info" class="app-excerpt-duration-info">Durée totale : — s</p>
+        <div class="app-excerpt-fields">
+          <label class="app-excerpt-field">
+            <span class="app-excerpt-label">Début (s)</span>
+            <input type="number" id="excerpt-start" min="0" step="0.5" value="0" class="app-excerpt-input">
+          </label>
+          <label class="app-excerpt-field">
+            <span class="app-excerpt-label">Durée (s)</span>
+            <input type="number" id="excerpt-duration" min="1" step="0.5" value="30" class="app-excerpt-input">
+          </label>
+          <button type="button" id="btn-apply-excerpt" class="app-btn app-btn-secondary">Appliquer l’extrait</button>
+        </div>
+        <p id="excerpt-status" class="app-feedback"></p>
+      </div>
     </section>
 
     <!-- Détection -->
