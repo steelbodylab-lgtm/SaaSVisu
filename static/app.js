@@ -452,12 +452,20 @@
   function enableDragMode() {
     isDragMode = true;
     var ov = document.getElementById("preview-overlay");
-    if (ov) { ov.classList.add("preview-pos-drag"); ov.classList.remove("preview-pos-bottom", "preview-pos-center", "preview-pos-top"); ov.style.left = "50%"; ov.style.top = "50%"; ov.style.right = "auto"; ov.style.transform = "translate(-50%,-50%)"; }
+    if (ov) { ov.classList.add("preview-pos-drag"); ov.classList.remove("preview-pos-bottom", "preview-pos-center", "preview-pos-top"); }
+    applyOverlayPosition((document.getElementById("select-position") || {}).value || "center");
   }
   function disableDragMode() {
     isDragMode = false; isDragging = false;
     var ov = document.getElementById("preview-overlay");
-    if (ov) { ov.classList.remove("preview-pos-drag", "dragging"); ov.style.left = ""; ov.style.top = ""; ov.style.right = ""; ov.style.transform = ""; }
+    if (ov) { ov.classList.remove("preview-pos-drag", "dragging"); ov.style.left = ""; ov.style.top = ""; ov.style.right = ""; ov.style.bottom = ""; ov.style.transform = ""; }
+  }
+  function applyOverlayPosition(pos) {
+    var ov = document.getElementById("preview-overlay");
+    if (!ov || !isDragMode) return;
+    if (pos === "top") { ov.style.left = "50%"; ov.style.top = "1rem"; ov.style.right = "auto"; ov.style.bottom = "auto"; ov.style.transform = "translateX(-50%)"; }
+    else if (pos === "bottom") { ov.style.left = "50%"; ov.style.top = "auto"; ov.style.right = "auto"; ov.style.bottom = "1rem"; ov.style.transform = "translateX(-50%)"; }
+    else { ov.style.left = "50%"; ov.style.top = "50%"; ov.style.right = "auto"; ov.style.bottom = "auto"; ov.style.transform = "translate(-50%,-50%)"; }
   }
   function initOverlayDrag() {
     var ov = document.getElementById("preview-overlay");
@@ -681,16 +689,14 @@
         updatePreviewOverlay();
       });
     });
-    document.querySelectorAll(".app-pill-display").forEach(function (pill) {
-      pill.addEventListener("click", function () {
-        document.querySelectorAll(".app-pill-display").forEach(function (p) { p.classList.remove("active"); });
-        pill.classList.add("active");
-        displayMode = pill.dataset.display || "mot";
-        var hid = document.getElementById("select-display");
-        if (hid) hid.value = displayMode;
+    var selDisplay = document.getElementById("select-display");
+    if (selDisplay) {
+      displayMode = selDisplay.value || "mot";
+      selDisplay.addEventListener("change", function () {
+        displayMode = selDisplay.value || "mot";
         updatePreviewOverlay();
       });
-    });
+    }
     document.querySelectorAll(".app-pill-pos").forEach(function (pill) {
       pill.addEventListener("click", function () {
         document.querySelectorAll(".app-pill-pos").forEach(function (p) { p.classList.remove("active"); });
@@ -698,7 +704,7 @@
         var pos = pill.dataset.pos || "center";
         var hid = document.getElementById("select-position");
         if (hid) hid.value = pos;
-        if (pos === "drag") enableDragMode(); else disableDragMode();
+        applyOverlayPosition(pos);
         updatePreviewOverlay();
       });
     });
@@ -983,6 +989,7 @@
     var bgVideo = document.getElementById("preview-bg-video");
     if (!area || !audio) return;
     area.classList.remove("hidden");
+    if (isAppNewUI()) enableDragMode();
     setPreviewStageRatio();
     audio.src = API + "/projects/" + projectId + "/audio";
 
@@ -1231,7 +1238,7 @@
     document.querySelectorAll('.pill[data-res]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.res === p.resolution); });
     document.querySelectorAll('.pill[data-pos]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.pos === p.position); });
     document.querySelectorAll('.pill[data-display]').forEach(function (pill) { pill.classList.toggle("pill-active", pill.dataset.display === p.display_mode); });
-    if (p.position === "drag") enableDragMode(); else disableDragMode();
+    if (isAppNewUI()) { enableDragMode(); applyOverlayPosition(p.position || "center"); } else { if (p.position === "drag") enableDragMode(); else disableDragMode(); }
     if (p.lyric_animation) {
       var match = LYRIC_ANIMS.find(function (a) { return a.cls === "lyric-anim-" + p.lyric_animation; });
       if (match) { selectedLyricAnim = match; var lbl = document.getElementById("anim-selected-label"); if (lbl) lbl.textContent = "Animation active : " + match.label; }
@@ -1434,21 +1441,15 @@
               container.innerHTML = "";
               for (var i = 0; i < currentPhrases.length; i++) {
                 var phraseText = currentPhrases[i].map(function (x) { return (currentSegments[x.idx] && currentSegments[x.idx].text) || ""; }).join(" ").trim();
-                var ta = document.createElement("textarea");
-                ta.className = "app-phrase-line";
-                ta.setAttribute("wrap", "soft");
-                ta.setAttribute("data-phrase-idx", String(i));
-                ta.placeholder = "Phrase " + (i + 1);
-                ta.value = phraseText;
-                container.appendChild(ta);
-                ta.addEventListener("input", function () { resizePhraseLine(ta); });
-                ta.addEventListener("paste", function () { setTimeout(function () { resizePhraseLine(ta); }, 0); });
-                requestAnimationFrame(function () { resizePhraseLine(ta); });
+                var lineEl = document.createElement("div");
+                lineEl.className = "app-phrase-line";
+                lineEl.setAttribute("contenteditable", "true");
+                lineEl.setAttribute("spellcheck", "false");
+                lineEl.setAttribute("data-phrase-idx", String(i));
+                lineEl.setAttribute("data-placeholder", "Phrase " + (i + 1));
+                lineEl.textContent = phraseText;
+                container.appendChild(lineEl);
               }
-              requestAnimationFrame(function () {
-                resizeAllPhraseLines();
-                setTimeout(resizeAllPhraseLines, 50);
-              });
             }
             if (cardRender) cardRender.classList.remove("hidden");
             startPreview();

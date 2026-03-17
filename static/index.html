@@ -83,62 +83,57 @@
             <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : il s’aimante au centre en relâchant.</p>
             <audio id="preview-audio" controls class="app-preview-audio"></audio>
           </div>
+          <div class="app-style-section">
+            <h3 class="app-style-section-title">Style du texte</h3>
+            <div class="app-style-block app-style-block-row">
+              <div class="app-style-item">
+                <span class="app-options-title">Effet</span>
+                <div class="app-effect-pills">
+                  <button type="button" class="app-pill app-pill-effect active" data-effect="neon">Néon</button>
+                  <button type="button" class="app-pill app-pill-effect" data-effect="elegant">Fantaisie</button>
+                  <button type="button" class="app-pill app-pill-effect" data-effect="ombre">Ombre</button>
+                </div>
+              </div>
+              <div class="app-style-item">
+                <span class="app-options-title">Police</span>
+                <select id="select-font"></select>
+              </div>
+              <div class="app-style-item">
+                <span class="app-options-title">Couleur</span>
+                <input type="color" id="input-text-color" value="#FFFFFF" class="app-color-input">
+              </div>
+              <div class="app-style-item">
+                <span class="app-options-title">Défilement</span>
+                <select id="select-display">
+                  <option value="mot">Mot par mot</option>
+                  <option value="ligne">Phrase par phrase</option>
+                </select>
+              </div>
+              <div class="app-style-item app-style-item-size">
+                <span class="app-options-title">Taille</span>
+                <div class="app-size-row">
+                  <input type="range" id="input-font-size" min="24" max="96" value="48" class="app-range">
+                  <span id="font-size-val" class="app-range-val">48</span>
+                </div>
+              </div>
+              <div class="app-style-item">
+                <span class="app-options-title">Position</span>
+                <div class="app-position-pills">
+                  <button type="button" class="app-pill app-pill-pos" data-pos="top">Haut</button>
+                  <button type="button" class="app-pill app-pill-pos active" data-pos="center">Centre</button>
+                  <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <input type="hidden" id="select-position" value="center">
-      <input type="hidden" id="select-display" value="mot">
       <input type="hidden" id="select-effect" value="neon">
       <input type="hidden" id="select-ratio" value="16:9">
       <input type="hidden" id="select-resolution" value="720p">
       <input type="hidden" id="select-beat-effect" value="none">
-
-      <div class="app-style-section">
-        <h3 class="app-style-section-title">Style du texte</h3>
-        <div class="app-style-block">
-          <div class="app-style-item">
-            <span class="app-options-title">Effet</span>
-            <div class="app-effect-pills">
-              <button type="button" class="app-pill app-pill-effect active" data-effect="neon">Néon</button>
-              <button type="button" class="app-pill app-pill-effect" data-effect="elegant">Fantaisie</button>
-              <button type="button" class="app-pill app-pill-effect" data-effect="ombre">Ombre</button>
-            </div>
-          </div>
-          <div class="app-style-item">
-            <span class="app-options-title">Police</span>
-            <select id="select-font"></select>
-          </div>
-          <div class="app-style-item">
-            <span class="app-options-title">Couleur</span>
-            <input type="color" id="input-text-color" value="#FFFFFF" class="app-color-input">
-          </div>
-          <div class="app-style-item app-style-item-size">
-            <span class="app-options-title">Taille</span>
-            <div class="app-size-row">
-              <input type="range" id="input-font-size" min="24" max="96" value="48" class="app-range">
-              <span id="font-size-val" class="app-range-val">48</span>
-            </div>
-          </div>
-        </div>
-        <div class="app-style-block">
-          <div class="app-style-item">
-            <span class="app-options-title">Défilement</span>
-            <div class="app-display-pills">
-              <button type="button" class="app-pill app-pill-display active" data-display="mot">Mot par mot</button>
-              <button type="button" class="app-pill app-pill-display" data-display="ligne">Phrase par phrase</button>
-            </div>
-          </div>
-          <div class="app-style-item">
-            <span class="app-options-title">Position</span>
-            <div class="app-position-pills">
-              <button type="button" class="app-pill app-pill-pos" data-pos="top">Haut</button>
-              <button type="button" class="app-pill app-pill-pos active" data-pos="center">Centre</button>
-              <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
-              <button type="button" class="app-pill app-pill-pos" data-pos="drag" title="Déplacer à la souris (aimant centre)">Déplacer</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div class="app-export-row">
         <button type="button" id="btn-export" class="app-btn app-btn-primary app-btn-export">Exporter la vidéo</button>
