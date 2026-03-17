@@ -672,36 +672,42 @@
   function fillDefaultOptions() {
     var fs = document.getElementById("select-font");
     var es = document.getElementById("select-effect");
-    if (isAppNewUI()) {
-      if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
-      return;
-    }
-    if (fs && !fs.options.length) ["Arial","Impact","Georgia","Verdana","Segoe UI","Times New Roman"].forEach(function (f) { fs.appendChild(new Option(f, f)); });
-    if (es && es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras",l:"Gras" },{ v:"minimal",l:"Minimal" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
+    if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
+    if (es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras",l:"Gras" },{ v:"minimal",l:"Minimal" },{ v:"neon",l:"Néon" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
   }
   function loadRenderOptions() {
-    if (isAppNewUI()) {
-      var fs = document.getElementById("select-font");
-      if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
-      return;
-    }
     fetch(API + "/config/options").then(function (r) { return r.json(); }).then(function (data) {
       var fs = document.getElementById("select-font");
       var es = document.getElementById("select-effect");
-      if (fs && data.fonts && data.fonts.length && es && es.tagName === "SELECT") {
+      if (fs && data.fonts && data.fonts.length) {
         fs.innerHTML = data.fonts.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join("");
-        if (data.effects && data.effects.length) es.innerHTML = data.effects.map(function (e) { return '<option value="' + e + '">' + (effectLabels[e] || e) + '</option>'; }).join("");
+        if (!fs.value) fs.selectedIndex = 0;
+      }
+      if (es && es.tagName === "SELECT" && data.effects && data.effects.length) {
+        es.innerHTML = data.effects.map(function (e) { return '<option value="' + e + '">' + (effectLabels[e] || e) + '</option>'; }).join("");
+        var neonOpt = es.querySelector('option[value="neon"]');
+        if (neonOpt) { es.value = "neon"; } else if (es.options.length) { es.selectedIndex = 0; }
+        syncEffectPillsFromSelect();
       }
       fillDefaultOptions();
     }).catch(fillDefaultOptions);
   }
+  function syncEffectPillsFromSelect() {
+    var es = document.getElementById("select-effect");
+    var val = es && es.value ? es.value : "neon";
+    document.querySelectorAll(".app-pill-effect").forEach(function (p) { p.classList.toggle("active", (p.dataset.effect || "") === val); });
+  }
   function initNewUIPills() {
+    var es = document.getElementById("select-effect");
+    if (es && es.tagName === "SELECT") {
+      es.addEventListener("change", function () { syncEffectPillsFromSelect(); updatePreviewOverlay(); });
+    }
     document.querySelectorAll(".app-pill-effect").forEach(function (pill) {
       pill.addEventListener("click", function () {
         document.querySelectorAll(".app-pill-effect").forEach(function (p) { p.classList.remove("active"); });
         pill.classList.add("active");
-        var hid = document.getElementById("select-effect");
-        if (hid) hid.value = pill.dataset.effect || "neon";
+        var sel = document.getElementById("select-effect");
+        if (sel) sel.value = pill.dataset.effect || "neon";
         updatePreviewOverlay();
       });
     });

@@ -98,6 +98,8 @@ body.app-body .app-style-block-row{display:flex;flex-wrap:wrap;align-items:flex-
 body.app-body .app-style-block-row .app-style-item{flex:0 0 auto}
 body.app-body .app-style-block-row .app-style-item-size{min-width:140px}
 body.app-body .app-style-block-row .app-effect-pills{display:flex;flex-wrap:wrap;gap:.35rem}
+body.app-body .app-style-block-row .app-effect-select{margin-top:.5rem;min-width:100%;max-width:220px}
+body.app-body .app-style-block-row .app-font-select{min-width:160px;max-width:220px}
 body.app-body .app-style-block-row select{min-width:100px;padding:.4rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:#fff;font-size:.85rem}
 body.app-body .app-style-item{display:flex;flex-direction:column;gap:.4rem}
 body.app-body .app-style-item .app-options-title{margin:0;font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}

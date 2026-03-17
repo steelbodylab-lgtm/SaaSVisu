@@ -377,12 +377,21 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
                 extract_word_timestamps as ash_extract,
                 is_available as ash_available,
             )
+            from saasvisu.audio_ingest import get_duration_seconds
             if not ash_available():
                 raise HTTPException(
                     status_code=503,
                     detail="AudioShake : AUDIOSHAKE_API_KEY dans .env (dashboard.audioshake.ai)",
                 )
-            print("[analyze] Moteur AudioShake (transcription + alignment).", flush=True)
+            # AudioShake refuse les morceaux trop longs (erreur "Song duration is too long")
+            AUDIOSHAKE_MAX_DURATION_SEC = 180  # 3 min (limite courante côté API)
+            dur_sec = get_duration_seconds(audio_file)
+            if dur_sec > AUDIOSHAKE_MAX_DURATION_SEC:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"AudioShake n'accepte que les extraits de max {AUDIOSHAKE_MAX_DURATION_SEC // 60} min (durée envoyée : {int(dur_sec)} s). Renseigne « Choisir un extrait » : Début (s) et Durée (s) ≤ 180, puis clique « Détecter les paroles » (sans appliquer l'extrait avant).",
+                )
+            print(f"[analyze] Moteur AudioShake (fichier à analyser : {dur_sec:.1f} s).", flush=True)
             segments = ash_extract(audio_file, api_key=audioshake_key, language_code="fr")
             engine_label = "audioshake"
             engine_msg = "Paroles détectées par AudioShake (qualité pro)."
@@ -464,6 +473,14 @@ def run_analyze(project_id: str, whisper_model: str = "large-v3", engine: str = 
             engine_msg = "Paroles détectées par Whisper (local) + Demucs."
     except HTTPException:
         raise
+    except RuntimeError as e:
+        err_msg = str(e)
+        if "too long" in err_msg.lower() or ("duration" in err_msg.lower() and "long" in err_msg.lower()):
+            raise HTTPException(
+                status_code=400,
+                detail="AudioShake refuse cet audio (trop long). Utilise « Choisir un extrait » : mets un Début (s) et une Durée (s) de max 10 min, puis clique « Détecter les paroles » sans appliquer l’extrait avant.",
+            )
+        raise HTTPException(status_code=400, detail=f"AudioShake : {err_msg}")
     except Exception as e:
         import traceback
         print(f"[analyze] Erreur: {e}", flush=True)
