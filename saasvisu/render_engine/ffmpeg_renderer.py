@@ -151,6 +151,13 @@ def _build_override_tags(
         parts.append("\\fscy0\\fad(100,0)\\t(0,350,\\fscy100)")
     elif anim_key == "neonPulse":
         parts.append("\\bord5\\blur3\\fad(200,0)\\t(0,350,\\bord2\\blur1)\\t(350,700,\\bord4\\blur2)")
+    elif anim_key == "noiseFill":
+        # Approximation d’un effet "noise/grain" via variations border + blur
+        # (ASS/libass ne permet pas du remplissage texture bitmap sans étapes de compositing lourdes)
+        parts.append("\\fad(120,0)\\blur2\\bord2\\t(0,250,\\blur4\\bord3)\\t(250,500,\\blur1\\bord2)\\t(500,750,\\blur3\\bord3)")
+    elif anim_key == "flameFade":
+        # Approximation d’un effet type "fade/flamme" via glow/border + pulsations
+        parts.append("\\fad(180,0)\\bord6\\blur4\\t(0,240,\\bord10\\blur7)\\t(240,520,\\bord4\\blur3)\\t(520,820,\\bord8\\blur6)")
     elif anim_key == "dropIn":
         parts.append(f"\\an5\\move({cx},{max(0, cy - big_off)},{cx},{cy},0,400)\\fad(100,0)")
     elif anim_key == "zoomBlur":

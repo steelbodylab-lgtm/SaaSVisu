@@ -248,6 +248,8 @@
     { cls: "lyric-anim-blurReveal", label: "Blur Reveal" },
     { cls: "lyric-anim-flipIn", label: "Flip 3D" },
     { cls: "lyric-anim-neonPulse", label: "Néon Pulse" },
+    { cls: "lyric-anim-noiseFill", label: "Noise / Grain" },
+    { cls: "lyric-anim-flameFade", label: "Fade / Flamme" },
     { cls: "lyric-anim-dropIn", label: "Drop In" },
     { cls: "lyric-anim-zoomBlur", label: "Zoom Blur" },
     { cls: "lyric-anim-typewriter", label: "Typewriter" },

@@ -533,6 +533,18 @@ input[type="number"]{padding:.32rem .45rem;background:var(--bg);border:1px solid
   70%{text-shadow:0 0 6px rgba(167,139,250,.5)}
   100%{opacity:1;text-shadow:0 0 12px rgba(167,139,250,.7),0 0 30px rgba(124,92,191,.4)}
 }
+@keyframes lyricNoiseFill{
+  0%{opacity:0;filter:blur(1px) contrast(1.1);transform:translateY(2px)}
+  30%{opacity:1;filter:blur(2px) contrast(1.25)}
+  60%{filter:blur(1px) contrast(1.15)}
+  100%{opacity:1;filter:blur(0px) contrast(1.05);transform:translateY(0)}
+}
+@keyframes lyricFlameFade{
+  0%{opacity:0;text-shadow:none;transform:scale(.98)}
+  30%{opacity:1;text-shadow:0 0 6px rgba(255,180,80,.9),0 0 18px rgba(255,70,120,.7)}
+  55%{text-shadow:0 0 12px rgba(255,110,50,1),0 0 30px rgba(255,40,90,.85)}
+  100%{opacity:1;text-shadow:0 0 10px rgba(255,150,90,.8),0 0 22px rgba(255,60,120,.6);transform:scale(1)}
+}
 @keyframes lyricDropIn{
   0%{opacity:0;transform:translateY(-80px) scaleY(1.2)}
   60%{opacity:1;transform:translateY(8px) scaleY(.95)}
@@ -572,6 +584,8 @@ input[type="number"]{padding:.32rem .45rem;background:var(--bg);border:1px solid
 .lyric-anim-blurReveal{animation:lyricBlurReveal .8s var(--ease-out-expo) both}
 .lyric-anim-flipIn{animation:lyricFlipIn .7s var(--ease-spring) both}
 .lyric-anim-neonPulse{animation:lyricNeonPulse 1.2s var(--ease-in-out-quart) both}
+.lyric-anim-noiseFill{animation:lyricNoiseFill .9s var(--ease-spring) both}
+.lyric-anim-flameFade{animation:lyricFlameFade 1s var(--ease-out-expo) both}
 .lyric-anim-dropIn{animation:lyricDropIn .8s var(--ease-spring) both}
 .lyric-anim-zoomBlur{animation:lyricZoomBlur .7s var(--ease-out-expo) both}
 .lyric-anim-typewriter{animation:lyricTypewriter 1s steps(25,end) both}
