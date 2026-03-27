@@ -448,35 +448,16 @@ input[type="number"]{padding:.32rem .45rem;background:var(--bg);border:1px solid
 .anim-slide-right:nth-child(2){transition-delay:.22s}
 .anim-slide-right:nth-child(3){transition-delay:.34s}
 
-/* ===== EFFECTS PREVIEW ===== */
+/* ===== EFFECTS PREVIEW (liste réduite, alignée sur /config/options) ===== */
 .preview-overlay.effect-minimal{text-shadow:none;font-weight:400}
 .preview-overlay.effect-classique{text-shadow:0 1px 3px rgba(0,0,0,.9)}
-.preview-overlay.effect-outline,.preview-overlay.effect-outline_fin{-webkit-text-stroke:1px #000;text-shadow:0 2px 4px rgba(0,0,0,.9)}
-.preview-overlay.effect-outline_epais{-webkit-text-stroke:2px #000;text-shadow:0 3px 6px rgba(0,0,0,.9)}
+.preview-overlay.effect-outline{-webkit-text-stroke:2px #000;text-shadow:0 2px 4px rgba(0,0,0,.9)}
 .preview-overlay.effect-outline_tres_epais{-webkit-text-stroke:3px #000;text-shadow:0 4px 8px rgba(0,0,0,1)}
-.preview-overlay.effect-ombre{text-shadow:0 2px 4px rgba(0,0,0,.9)}
-.preview-overlay.effect-ombre_forte{text-shadow:0 4px 8px rgba(0,0,0,1)}
-.preview-overlay.effect-ombre_tres_forte{text-shadow:0 6px 10px rgba(0,0,0,1)}
 .preview-overlay.effect-outline_ombre,.preview-overlay.effect-outline_ombre_fort{-webkit-text-stroke:2px #000;text-shadow:0 3px 6px rgba(0,0,0,1)}
-.preview-overlay.effect-gras{font-weight:700}
 .preview-overlay.effect-gras_epais{font-weight:800;-webkit-text-stroke:1px #000}
 .preview-overlay.effect-italique{font-style:italic}
-.preview-overlay.effect-gras_italique{font-weight:700;font-style:italic}
 .preview-overlay.effect-neon{text-shadow:0 0 6px rgba(0,255,234,.9),0 0 16px rgba(0,255,234,.7),0 0 32px rgba(0,255,234,.5);font-weight:600}
-.preview-overlay.effect-pop{-webkit-text-stroke:3px #000;text-shadow:0 3px 0 rgba(0,0,0,.9),0 6px 8px rgba(0,0,0,.7);font-weight:800}
 .preview-overlay.effect-elegant{font-style:italic;text-shadow:0 2px 4px rgba(0,0,0,.7)}
-.preview-overlay.effect-retro{-webkit-text-stroke:2px #000;font-weight:700}
-.preview-overlay.effect-discret{text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.preview-overlay.effect-halftone_psd{
-  font-weight:800;
-  letter-spacing:.01em;
-  color:#2a2a2a;
-  text-shadow:
-    0 0 0 rgba(0,0,0,.9),
-    0 2px 6px rgba(0,0,0,.55),
-    0 0 14px rgba(0,0,0,.22);
-  filter:contrast(1.15) saturate(.75);
-}
 .preview-overlay.effect-halftone_real{
   font-family:"Arial Black","Impact","Segoe UI",sans-serif;
   font-weight:800;

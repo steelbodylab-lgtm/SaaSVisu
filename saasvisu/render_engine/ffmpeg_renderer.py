@@ -72,11 +72,28 @@ def get_effect_keys() -> list[str]:
     return keys
 
 
+# Libellés français pour les effets intégrés (liste courte, voir EFFECTS).
+EFFECT_LABELS: dict[str, str] = {
+    "minimal": "Minimal",
+    "classique": "Classique",
+    "outline": "Contour",
+    "outline_tres_epais": "Contour très épais",
+    "outline_ombre": "Contour + ombre",
+    "outline_ombre_fort": "Contour + ombre fort",
+    "gras_epais": "Gras épais",
+    "italique": "Italique",
+    "neon": "Néon",
+    "elegant": "Élégant",
+    "halftone_real": "Halftone (texture PNG)",
+}
+
+
 def get_effect_labels() -> dict[str, str]:
-    """Libellés par défaut pour les effets externes + effets internes."""
-    labels: dict[str, str] = {}
+    """Libellés : effets intégrés + textures externes découvertes automatiquement."""
+    labels: dict[str, str] = dict(EFFECT_LABELS)
     for key in _discover_external_texture_effect_files().keys():
-        # ext__black_white... -> Black White ...
+        if key in labels:
+            continue
         label = key
         if key.startswith("ext__"):
             label = key[5:]
@@ -117,53 +134,18 @@ FONTS = [
     "Eurostile", "Bank Gothic",
 ]
 
-# Effets texte : outline, shadow (pixels), bold, italic. Existants + premium / atypiques
+# Effets texte : liste réduite (outline/shadow/bold/italic) + texture halftone PNG.
 EFFECTS = {
-    # ——— Existants ———
     "minimal": {"outline": 0, "shadow": 0, "bold": 0, "italic": 0},
     "classique": {"outline": 2, "shadow": 1, "bold": 0, "italic": 0},
-    "outline_fin": {"outline": 1, "shadow": 0, "bold": 0, "italic": 0},
     "outline": {"outline": 2, "shadow": 0, "bold": 0, "italic": 0},
-    "outline_epais": {"outline": 4, "shadow": 0, "bold": 0, "italic": 0},
     "outline_tres_epais": {"outline": 6, "shadow": 0, "bold": 0, "italic": 0},
-    "ombre": {"outline": 0, "shadow": 2, "bold": 0, "italic": 0},
-    "ombre_forte": {"outline": 0, "shadow": 4, "bold": 0, "italic": 0},
-    "ombre_tres_forte": {"outline": 0, "shadow": 6, "bold": 0, "italic": 0},
     "outline_ombre": {"outline": 2, "shadow": 1, "bold": 0, "italic": 0},
     "outline_ombre_fort": {"outline": 3, "shadow": 2, "bold": 0, "italic": 0},
-    "gras": {"outline": 2, "shadow": 1, "bold": 1, "italic": 0},
     "gras_epais": {"outline": 3, "shadow": 2, "bold": 1, "italic": 0},
     "italique": {"outline": 2, "shadow": 1, "bold": 0, "italic": 1},
-    "gras_italique": {"outline": 2, "shadow": 1, "bold": 1, "italic": 1},
     "neon": {"outline": 1, "shadow": 3, "bold": 0, "italic": 0},
-    "pop": {"outline": 4, "shadow": 2, "bold": 1, "italic": 0},
     "elegant": {"outline": 1, "shadow": 2, "bold": 0, "italic": 1},
-    "retro": {"outline": 3, "shadow": 0, "bold": 1, "italic": 0},
-    "discret": {"outline": 0, "shadow": 1, "bold": 0, "italic": 0},
-    # ——— Premium / atypiques (expérience variée) ———
-    "spotify": {"outline": 1, "shadow": 2, "bold": 0, "italic": 0},
-    "apple_music": {"outline": 0, "shadow": 3, "bold": 0, "italic": 0},
-    "karaoke": {"outline": 3, "shadow": 1, "bold": 1, "italic": 0},
-    "clip_pro": {"outline": 2, "shadow": 2, "bold": 1, "italic": 0},
-    "luxe": {"outline": 1, "shadow": 4, "bold": 0, "italic": 1},
-    "editorial": {"outline": 0, "shadow": 2, "bold": 1, "italic": 0},
-    "disco": {"outline": 2, "shadow": 4, "bold": 0, "italic": 0},
-    "holographique": {"outline": 2, "shadow": 5, "bold": 0, "italic": 0},
-    "bloc_impact": {"outline": 5, "shadow": 0, "bold": 1, "italic": 0},
-    "glow": {"outline": 0, "shadow": 5, "bold": 0, "italic": 0},
-    "double_contour": {"outline": 4, "shadow": 2, "bold": 0, "italic": 0},
-    "cinema": {"outline": 1, "shadow": 3, "bold": 1, "italic": 0},
-    "affiche": {"outline": 4, "shadow": 1, "bold": 1, "italic": 0},
-    "sobre_pro": {"outline": 0, "shadow": 1, "bold": 1, "italic": 0},
-    "brut": {"outline": 0, "shadow": 0, "bold": 1, "italic": 0},
-    "script_luxe": {"outline": 1, "shadow": 3, "bold": 0, "italic": 1},
-    "neon_fort": {"outline": 2, "shadow": 6, "bold": 0, "italic": 0},
-    "contour_fluo": {"outline": 3, "shadow": 2, "bold": 0, "italic": 0},
-    "ombre_portee": {"outline": 0, "shadow": 8, "bold": 0, "italic": 0},
-    "titrage": {"outline": 2, "shadow": 2, "bold": 1, "italic": 0},
-    # ——— Effets importés depuis références PSD (approximation runtime) ———
-    "halftone_psd": {"outline": 1, "shadow": 4, "bold": 1, "italic": 0},
-    # ——— Effets texture réelle (via PNG Photoshop) ———
     "halftone_real": {"outline": 0, "shadow": 0, "bold": 1, "italic": 0},
 }
 
@@ -246,16 +228,12 @@ def _build_override_tags(
     return "{" + "".join(parts) + "}"
 
 
-def _effect_runtime_override(effect_key: str | None) -> str:
+def _effect_runtime_override(_effect_key: str | None) -> str:
     """
     Tags ASS supplémentaires appliqués au runtime selon l'effet texte choisi.
     Utile pour rendre certains effets visuellement distincts à l'export, au-delà
     des seuls paramètres style (outline/shadow/bold/italic).
     """
-    key = (effect_key or "").strip()
-    if key == "halftone_psd":
-        # Rendu granuleux / print-like (approximation halftone en ASS)
-        return "\\alpha&H28&\\blur1\\bord1\\shad5\\fscx102\\fscy98\\t(0,220,\\blur2\\alpha&H40&)\\t(220,520,\\blur1\\alpha&H28&)"
     return ""
 
 

@@ -669,14 +669,14 @@
   }
 
   /* ======== OPTIONS ======== */
-  var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret",spotify:"Spotify",apple_music:"Apple Music",karaoke:"Karaoké",clip_pro:"Clip pro",luxe:"Luxe",editorial:"Editorial",disco:"Disco",holographique:"Holographique",bloc_impact:"Bloc impact",glow:"Glow",double_contour:"Double contour",cinema:"Cinéma",affiche:"Affiche",sobre_pro:"Sobre pro",brut:"Brut",script_luxe:"Script luxe",neon_fort:"Néon fort",contour_fluo:"Contour fluo",ombre_portee:"Ombre portée",titrage:"Titrage",halftone_psd:"Halftone PSD",halftone_real:"Halftone Réel (PNG)" };
+  var effectLabels = { minimal:"Minimal",classique:"Classique",outline:"Contour",outline_tres_epais:"Contour très épais",outline_ombre:"Contour + ombre",outline_ombre_fort:"Contour + ombre fort",gras_epais:"Gras épais",italique:"Italique",neon:"Néon",elegant:"Élégant",halftone_real:"Halftone (texture PNG)" };
   var textureEffectUrls = {};
   var APP_FONTS = ["Impact", "Georgia", "Broadway", "Stencil", "Ravie", "Vivaldi", "Brush Script MT", "Cooper Black", "Bodoni MT", "Magneto"];
   function fillDefaultOptions() {
     var fs = document.getElementById("select-font");
     var es = document.getElementById("select-effect");
     if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
-    if (es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras",l:"Gras" },{ v:"minimal",l:"Minimal" },{ v:"neon",l:"Néon" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
+    if (es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras_epais",l:"Gras épais" },{ v:"minimal",l:"Minimal" },{ v:"neon",l:"Néon" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
   }
   function loadRenderOptions() {
     fetch(API + "/config/options").then(function (r) { return r.json(); }).then(function (data) {
@@ -691,9 +691,16 @@
         if (!fs.value) fs.selectedIndex = 0;
       }
       if (es && es.tagName === "SELECT" && data.effects && data.effects.length) {
+        var prevEff = es.value;
         es.innerHTML = data.effects.map(function (e) { return '<option value="' + e + '">' + (effectLabels[e] || e) + '</option>'; }).join("");
-        var neonOpt = es.querySelector('option[value="neon"]');
-        if (neonOpt) { es.value = "neon"; } else if (es.options.length) { es.selectedIndex = 0; }
+        var allowed = data.effects;
+        if (prevEff && allowed.indexOf(prevEff) >= 0) {
+          es.value = prevEff;
+        } else if (allowed.indexOf("neon") >= 0) {
+          es.value = "neon";
+        } else if (es.options.length) {
+          es.selectedIndex = 0;
+        }
         syncEffectPillsFromSelect();
       }
       fillDefaultOptions();
@@ -1277,6 +1284,14 @@
     function setVal(id, val) { var el = document.getElementById(id); if (el && val !== undefined) el.value = val; }
     setVal("select-font", p.font);
     setVal("select-effect", p.effect);
+    var se = document.getElementById("select-effect");
+    if (se && se.tagName === "SELECT" && se.options.length && p.effect !== undefined) {
+      var has = false;
+      for (var ei = 0; ei < se.options.length; ei++) { if (se.options[ei].value === p.effect) { has = true; break; } }
+      if (!has) {
+        se.value = se.querySelector('option[value="neon"]') ? "neon" : (se.options[0] && se.options[0].value) || "classique";
+      }
+    }
     setVal("input-font-size", p.font_size);
     var sv = document.getElementById("font-size-val"); if (sv) sv.textContent = p.font_size || 48;
     setVal("input-text-color", p.text_color);
