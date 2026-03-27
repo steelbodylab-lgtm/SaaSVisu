@@ -669,7 +669,8 @@
   }
 
   /* ======== OPTIONS ======== */
-  var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret",spotify:"Spotify",apple_music:"Apple Music",karaoke:"Karaoké",clip_pro:"Clip pro",luxe:"Luxe",editorial:"Editorial",disco:"Disco",holographique:"Holographique",bloc_impact:"Bloc impact",glow:"Glow",double_contour:"Double contour",cinema:"Cinéma",affiche:"Affiche",sobre_pro:"Sobre pro",brut:"Brut",script_luxe:"Script luxe",neon_fort:"Néon fort",contour_fluo:"Contour fluo",ombre_portee:"Ombre portée",titrage:"Titrage" };
+  var effectLabels = { minimal:"Minimal",classique:"Classique",outline_fin:"Contour fin",outline:"Contour",outline_epais:"Contour épais",outline_tres_epais:"Contour très épais",ombre:"Ombre",ombre_forte:"Ombre forte",ombre_tres_forte:"Ombre très forte",outline_ombre:"Contour+ombre",outline_ombre_fort:"Contour+ombre fort",gras:"Gras",gras_epais:"Gras épais",italique:"Italique",gras_italique:"Gras+italique",neon:"Néon",pop:"Pop",elegant:"Élégant",retro:"Rétro",discret:"Discret",spotify:"Spotify",apple_music:"Apple Music",karaoke:"Karaoké",clip_pro:"Clip pro",luxe:"Luxe",editorial:"Editorial",disco:"Disco",holographique:"Holographique",bloc_impact:"Bloc impact",glow:"Glow",double_contour:"Double contour",cinema:"Cinéma",affiche:"Affiche",sobre_pro:"Sobre pro",brut:"Brut",script_luxe:"Script luxe",neon_fort:"Néon fort",contour_fluo:"Contour fluo",ombre_portee:"Ombre portée",titrage:"Titrage",halftone_psd:"Halftone PSD",halftone_real:"Halftone Réel (PNG)" };
+  var textureEffectUrls = {};
   var APP_FONTS = ["Impact", "Georgia", "Broadway", "Stencil", "Ravie", "Vivaldi", "Brush Script MT", "Cooper Black", "Bodoni MT", "Magneto"];
   function fillDefaultOptions() {
     var fs = document.getElementById("select-font");
@@ -681,6 +682,10 @@
     fetch(API + "/config/options").then(function (r) { return r.json(); }).then(function (data) {
       var fs = document.getElementById("select-font");
       var es = document.getElementById("select-effect");
+      if (data && data.effect_labels) {
+        Object.keys(data.effect_labels).forEach(function (k) { effectLabels[k] = data.effect_labels[k]; });
+      }
+      textureEffectUrls = (data && data.texture_effects) ? data.texture_effects : {};
       if (fs && data.fonts && data.fonts.length) {
         fs.innerHTML = data.fonts.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join("");
         if (!fs.value) fs.selectedIndex = 0;
@@ -986,6 +991,28 @@
     if (!hasWord) lastOverlayWordIdx = -1;
 
     ov.className = baseCls;
+    // Effets externes texture: appliquer dynamiquement le remplissage image en preview.
+    var texUrl = textureEffectUrls[st.effect || ""] || "";
+    if (texUrl) {
+      ov.style.backgroundImage = 'url(\"' + texUrl + '\")';
+      ov.style.backgroundSize = "cover";
+      ov.style.backgroundPosition = "center";
+      ov.style.backgroundRepeat = "no-repeat";
+      ov.style.webkitBackgroundClip = "text";
+      ov.style.backgroundClip = "text";
+      ov.style.color = "transparent";
+      ov.style.webkitTextFillColor = "transparent";
+      ov.style.textShadow = "0 2px 6px rgba(0,0,0,.45)";
+      ov.style.fontWeight = "800";
+    } else {
+      ov.style.backgroundImage = "";
+      ov.style.backgroundSize = "";
+      ov.style.backgroundPosition = "";
+      ov.style.backgroundRepeat = "";
+      ov.style.webkitBackgroundClip = "";
+      ov.style.backgroundClip = "";
+      ov.style.webkitTextFillColor = "";
+    }
   }
 
   var previewAnimId = null;

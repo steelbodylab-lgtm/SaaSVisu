@@ -28,3 +28,11 @@ Thumbs.db
 .env
 .env.local
 *.local
+
+# Debug local
+debug_audioshake_last.json
+
+# Assets sources lourds (non versionnés)
+saasvisu/textures/_extract_tmp/
+saasvisu/textures/freepik_effects_extracted/
+saasvisu/textures/**/*.psd

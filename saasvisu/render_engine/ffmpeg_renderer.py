@@ -16,6 +16,73 @@ RESOLUTIONS = {
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
+# Effets "texture réelle" : texte masqué avec une image PNG exportée depuis Photoshop.
+# Déposez les fichiers dans saasvisu/textures/<nom>/.
+TEXTURE_EFFECT_FILES = {
+    "halftone_real": Path("saasvisu") / "textures" / "halftone" / "halftone_texture.png",
+}
+
+
+def _discover_external_texture_effect_files() -> dict[str, Path]:
+    """
+    Découvre automatiquement les effets externes déposés dans:
+    saasvisu/textures/effects/<effect_key>/texture.(png|jpg|jpeg|webp)
+    """
+    root = Path(__file__).resolve().parents[2] / "saasvisu" / "textures" / "effects"
+    out: dict[str, Path] = {}
+    if not root.exists():
+        return out
+    for effect_dir in sorted([p for p in root.iterdir() if p.is_dir()]):
+        key = effect_dir.name.strip()
+        if not key:
+            continue
+        tex = None
+        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+            cand = effect_dir / f"texture{ext}"
+            if cand.exists():
+                tex = cand
+                break
+        if tex is not None:
+            out[key] = tex
+    return out
+
+
+def get_texture_effect_preview_urls() -> dict[str, str]:
+    """Retourne un mapping effect_key -> URL static de texture pour la preview web."""
+    urls: dict[str, str] = {}
+    for key in _discover_external_texture_effect_files().keys():
+        static_dir = Path(__file__).resolve().parents[2] / "static" / "textures" / "effects" / key
+        tex_name = None
+        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+            cand = static_dir / f"texture{ext}"
+            if cand.exists():
+                tex_name = cand.name
+                break
+        if tex_name:
+            urls[key] = f"/static/textures/effects/{key}/{tex_name}"
+    return urls
+
+
+def get_effect_keys() -> list[str]:
+    """Liste des effets disponibles (natif + textures externes)."""
+    keys = list(EFFECTS.keys())
+    for key in _discover_external_texture_effect_files().keys():
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
+def get_effect_labels() -> dict[str, str]:
+    """Libellés par défaut pour les effets externes + effets internes."""
+    labels: dict[str, str] = {}
+    for key in _discover_external_texture_effect_files().keys():
+        # ext__black_white... -> Black White ...
+        label = key
+        if key.startswith("ext__"):
+            label = key[5:]
+        labels[key] = label.replace("_", " ").strip().title()
+    return labels
+
 # Polices existantes + premium / atypiques (installer les polices pour les utiliser)
 FONTS = [
     # ——— Existantes ———
@@ -94,6 +161,10 @@ EFFECTS = {
     "contour_fluo": {"outline": 3, "shadow": 2, "bold": 0, "italic": 0},
     "ombre_portee": {"outline": 0, "shadow": 8, "bold": 0, "italic": 0},
     "titrage": {"outline": 2, "shadow": 2, "bold": 1, "italic": 0},
+    # ——— Effets importés depuis références PSD (approximation runtime) ———
+    "halftone_psd": {"outline": 1, "shadow": 4, "bold": 1, "italic": 0},
+    # ——— Effets texture réelle (via PNG Photoshop) ———
+    "halftone_real": {"outline": 0, "shadow": 0, "bold": 1, "italic": 0},
 }
 
 
@@ -173,6 +244,28 @@ def _build_override_tags(
     if not parts:
         return ""
     return "{" + "".join(parts) + "}"
+
+
+def _effect_runtime_override(effect_key: str | None) -> str:
+    """
+    Tags ASS supplémentaires appliqués au runtime selon l'effet texte choisi.
+    Utile pour rendre certains effets visuellement distincts à l'export, au-delà
+    des seuls paramètres style (outline/shadow/bold/italic).
+    """
+    key = (effect_key or "").strip()
+    if key == "halftone_psd":
+        # Rendu granuleux / print-like (approximation halftone en ASS)
+        return "\\alpha&H28&\\blur1\\bord1\\shad5\\fscx102\\fscy98\\t(0,220,\\blur2\\alpha&H40&)\\t(220,520,\\blur1\\alpha&H28&)"
+    return ""
+
+
+def _merge_override_tags(base_override: str, extra_raw_tags: str) -> str:
+    """Fusionne des tags ASS supplémentaires dans un override existant."""
+    if not extra_raw_tags:
+        return base_override
+    if base_override.startswith("{") and base_override.endswith("}"):
+        return base_override[:-1] + extra_raw_tags + "}"
+    return "{" + extra_raw_tags + "}"
 
 
 def _effect_to_ass_style(
@@ -284,6 +377,7 @@ def _segments_to_ass_phrase_accumulation(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    effect_key: str | None = None,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -303,6 +397,7 @@ def _segments_to_ass_phrase_accumulation(
     need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
     cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
     override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    override = _merge_override_tags(override, _effect_runtime_override(effect_key))
     lines = _make_ass_header(width, height, [style_line])
     for phrase in phrases:
         if not phrase:
@@ -329,6 +424,7 @@ def _segments_to_ass_ligne(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    effect_key: str | None = None,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -349,6 +445,7 @@ def _segments_to_ass_ligne(
     need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
     cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
     override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    override = _merge_override_tags(override, _effect_runtime_override(effect_key))
     hc_bgr = f"&H00{highlight_hex[4:6]}{highlight_hex[2:4]}{highlight_hex[0:2]}"
     dim_alpha = "\\alpha&H90&"
     lines = _make_ass_header(width, height, [style_line])
@@ -382,6 +479,7 @@ def _segments_to_ass_scroll(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    effect_key: str | None = None,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -411,6 +509,7 @@ def _segments_to_ass_scroll(
     need_pos = position == "drag" or (lyric_animation in _MOVE_ANIMS)
     cx, cy = _compute_anchor_xy(alignment, width, height, margin_v, font_size, pos_x_pct, pos_y_pct)
     override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    override = _merge_override_tags(override, _effect_runtime_override(effect_key))
     hc_bgr = f"&H00{highlight_hex[4:6]}{highlight_hex[2:4]}{highlight_hex[0:2]}"
     dim_alpha = "\\alpha&H90&"
     lines = _make_ass_header(width, height, [style_active, style_next])
@@ -450,6 +549,7 @@ def _segments_to_ass(
     primary_color: str = "#FFFFFF",
     outline_color: str = "#000000",
     effect: dict[str, int] | None = None,
+    effect_key: str | None = None,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -482,6 +582,7 @@ def _segments_to_ass(
         pos_x_pct=pos_x_pct, pos_y_pct=pos_y_pct,
     )
     override = _build_override_tags(lyric_animation, cx, cy, need_pos)
+    override = _merge_override_tags(override, _effect_runtime_override(effect_key))
     lines = [
         "[Script Info]",
         "ScriptType: v4.00+",
@@ -618,12 +719,34 @@ def render_lyric_video(
         outline_hex = "#" + outline_hex
     effect_key = (text_effect or "classique").strip() or "classique"
     effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
+    # Effet "exact" : on force une base typographique proche du PSD pour stabiliser le rendu.
+    if effect_key == "halftone_real":
+        font = "Arial Black"
+        size = max(34, int(size))
+    texture_effect_rel = TEXTURE_EFFECT_FILES.get(effect_key)
+    texture_effect_path = None
+    if texture_effect_rel is not None:
+        # Le renderer est dans saasvisu/render_engine ; remonter à la racine repo.
+        project_root = Path(__file__).resolve().parents[2]
+        texture_effect_path = (project_root / texture_effect_rel).resolve()
+        if not texture_effect_path.exists():
+            raise FileNotFoundError(
+                f"Texture d'effet introuvable pour '{effect_key}': {texture_effect_path}. "
+                f"Exportez un PNG depuis Photoshop à cet emplacement."
+            )
+    else:
+        external_fx = _discover_external_texture_effect_files()
+        if effect_key in external_fx:
+            texture_effect_path = external_fx[effect_key]
+            # Pour les effets externes, base neutre puis texture masquée
+            effect_dict = EFFECTS["minimal"]
 
     _ass_common = dict(
         segments=segments, width=w, height=h,
         font_name=font, font_size=size,
         primary_color=primary_color, outline_color=outline_hex,
         effect=effect_dict,
+        effect_key=effect_key,
         position=position or "bottom",
         pos_x_pct=pos_x_pct, pos_y_pct=pos_y_pct,
         lyric_animation=lyric_animation,
@@ -658,7 +781,90 @@ def render_lyric_video(
     if beat_ass_path:
         ass_filter += f",ass='{beat_ass_path.name}'"
 
-    if background_path is not None:
+    # Mode texture réelle : on crée un masque texte (ASS blanc sur fond noir), puis
+    # on remplit le texte avec la texture PNG exportée depuis Photoshop.
+    mask_ass_path = None
+    if texture_effect_path is not None:
+        _mask_common = dict(
+            segments=segments, width=w, height=h,
+            font_name=font, font_size=size,
+            primary_color="#FFFFFF", outline_color="#000000",
+            effect=EFFECTS["minimal"],
+            effect_key="minimal",
+            position=position or "bottom",
+            pos_x_pct=pos_x_pct, pos_y_pct=pos_y_pct,
+            lyric_animation=lyric_animation,
+        )
+        if display_mode == "accumulation":
+            mask_ass_content = _segments_to_ass_phrase_accumulation(**_mask_common)
+        elif display_mode == "ligne":
+            mask_ass_content = _segments_to_ass_ligne(**_mask_common)
+        elif display_mode == "scroll":
+            mask_ass_content = _segments_to_ass_scroll(**_mask_common)
+        else:
+            mask_ass_content = _segments_to_ass(**_mask_common)
+        mask_ass_path = output_path.parent / (output_path.stem + "_mask.ass")
+        mask_ass_path.write_text(mask_ass_content, encoding="utf-8")
+
+    if texture_effect_path is not None:
+        if background_path is not None:
+            bg_path = Path(background_path)
+            if not bg_path.exists():
+                raise FileNotFoundError(f"Fichier fond introuvable: {bg_path}")
+            ext = bg_path.suffix.lower()
+            if ext in IMAGE_EXTENSIONS:
+                input_cmd = [
+                    "ffmpeg", "-y",
+                    "-loop", "1", "-i", str(bg_path.resolve()),
+                    "-i", str(audio_path.resolve()),
+                    "-loop", "1", "-i", str(texture_effect_path),
+                ]
+                bg_filter = f"[0:v]{scale_crop_filter}[bg];"
+            elif ext in VIDEO_EXTENSIONS:
+                input_cmd = [
+                    "ffmpeg", "-y",
+                    "-stream_loop", "-1", "-i", str(bg_path.resolve()),
+                    "-i", str(audio_path.resolve()),
+                    "-loop", "1", "-i", str(texture_effect_path),
+                ]
+                bg_filter = f"[0:v]{scale_crop_filter}[bg];"
+            else:
+                raise ValueError(f"Format de fond non supporté: {ext}. Utiliser image ({IMAGE_EXTENSIONS}) ou vidéo ({VIDEO_EXTENSIONS})")
+        else:
+            input_cmd = [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", f"color=c=0x{r:02x}{g:02x}{b:02x}:s={w}x{h}:d={duration}",
+                "-i", str(audio_path.resolve()),
+                "-loop", "1", "-i", str(texture_effect_path),
+            ]
+            bg_filter = "[0:v]format=yuv420p[bg];"
+
+        mask_name = mask_ass_path.name if mask_ass_path else ass_filter_name
+        filter_complex = (
+            f"{bg_filter}"
+            f"color=c=black:s={w}x{h}:d={duration}[maskbase];"
+            f"[maskbase]ass='{mask_name}'[masktxt];"
+            f"[masktxt]format=gray[maskg];"
+            f"[2:v]scale={w}:{h},format=rgba[tex];"
+            f"[tex][maskg]alphamerge[texttex];"
+            f"[bg][texttex]overlay=0:0:format=auto[withtext];"
+        )
+        if beat_ass_path:
+            filter_complex += f"[withtext]ass='{beat_ass_path.name}'[vout]"
+            out_map = ["-map", "[vout]"]
+        else:
+            out_map = ["-map", "[withtext]"]
+
+        cmd = input_cmd + [
+            "-filter_complex", filter_complex,
+            *out_map,
+            "-map", "1:a",
+            "-t", str(duration),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "192k",
+            "-shortest", str(output_path.resolve()),
+        ]
+    elif background_path is not None:
         bg_path = Path(background_path)
         if not bg_path.exists():
             raise FileNotFoundError(f"Fichier fond introuvable: {bg_path}")
@@ -704,6 +910,8 @@ def render_lyric_video(
         err = (result.stderr or result.stdout or "").strip() or "FFmpeg a échoué"
         raise RuntimeError(err)
     ass_path.unlink(missing_ok=True)
+    if mask_ass_path:
+        mask_ass_path.unlink(missing_ok=True)
     if beat_ass_path:
         beat_ass_path.unlink(missing_ok=True)
     return output_path

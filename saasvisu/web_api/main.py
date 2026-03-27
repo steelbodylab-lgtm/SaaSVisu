@@ -80,8 +80,18 @@ def root():
 @app.get("/config/options")
 def get_options():
     """Retourne les polices et effets disponibles pour le rendu."""
-    from saasvisu.render_engine.ffmpeg_renderer import FONTS, EFFECTS
-    return {"fonts": FONTS, "effects": list(EFFECTS.keys())}
+    from saasvisu.render_engine.ffmpeg_renderer import (
+        FONTS,
+        get_effect_keys,
+        get_effect_labels,
+        get_texture_effect_preview_urls,
+    )
+    return {
+        "fonts": FONTS,
+        "effects": get_effect_keys(),
+        "effect_labels": get_effect_labels(),
+        "texture_effects": get_texture_effect_preview_urls(),
+    }
 
 
 def _ensure_env_loaded():
@@ -192,6 +202,7 @@ def get_audio_duration(project_id: str):
 def apply_audio_segment(project_id: str, body: AudioSegmentBody):
     """Conserve uniquement l'extrait [start_seconds, start_seconds + duration_seconds]. La détection des paroles se fera sur cet extrait."""
     from pydub import AudioSegment
+    import tempfile
     project_path = PROJECTS_DIR / project_id
     if not project_path.exists():
         raise HTTPException(status_code=404, detail="Projet introuvable")
@@ -217,7 +228,21 @@ def apply_audio_segment(project_id: str, body: AudioSegmentBody):
     fmt = (audio_file.suffix or ".mp3").lstrip(".").lower()
     if fmt == "m4a":
         fmt = "ipod"
-    excerpt.export(str(audio_file), format=fmt)
+    # Sous Windows, exporter directement sur le même fichier peut lever "Invalid argument".
+    # On exporte dans un temporaire puis on remplace le fichier source.
+    try:
+        with tempfile.NamedTemporaryFile(suffix=f".{fmt}", delete=False) as f:
+            tmp_path = Path(f.name)
+        excerpt.export(str(tmp_path), format=fmt)
+        shutil.copy2(str(tmp_path), str(audio_file))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Extrait audio invalide : {e}")
+    finally:
+        try:
+            if "tmp_path" in locals():
+                tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
     return {"ok": True, "start_seconds": body.start_seconds, "duration_seconds": (end_ms - start_ms) / 1000.0}
 
 
