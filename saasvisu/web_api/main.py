@@ -80,6 +80,7 @@ def root():
 @app.get("/config/options")
 def get_options():
     """Retourne les polices et effets disponibles pour le rendu."""
+    from saasvisu.render_engine.font_bundle import font_files_for_static
     from saasvisu.render_engine.ffmpeg_renderer import (
         FONTS,
         get_effect_keys,
@@ -88,6 +89,7 @@ def get_options():
     )
     return {
         "fonts": FONTS,
+        "font_files": font_files_for_static(),
         "effects": get_effect_keys(),
         "effect_labels": get_effect_labels(),
         "texture_effects": get_texture_effect_preview_urls(),
@@ -778,7 +780,7 @@ def run_remix(project_id: str, body: RemixBody | None = None):
         anims = ["fadeIn", "slideUp", "bounceIn", "scaleIn", "glitch", "blurReveal", "neonPulse", "dropIn", "zoomBlur", "spinIn"]
         modes = ["mot", "accumulation", "ligne", "scroll"]
         params = {
-            "font": random.choice(FONTS[:20]),
+            "font": random.choice(FONTS),
             "font_size": random.choice([36, 42, 48, 56, 64]),
             "effect": random.choice(list(EFFECTS.keys())),
             "text_color": "#" + "".join(random.choices("0123456789ABCDEF", k=6)),

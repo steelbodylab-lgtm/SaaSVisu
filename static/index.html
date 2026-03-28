@@ -9,7 +9,7 @@
 <body class="app-body">
   <header class="app-header">
     <span class="app-logo">SaaS Visu</span>
-    <div class="app-header-center">ATTENTION AUX CREDITS API AUDIOSHAKE CA COUTE CHER TOUT SES MORTS CONNARD</div>
+    <div class="app-header-center" title="Rappel coûts API">Les moteurs cloud (AudioShake, AssemblyAI…) facturent à l’usage — limite la durée avec l’extrait ci-dessous.</div>
     <span class="credits-badge" id="credits-badge" title="Crédits">—</span>
   </header>
 
@@ -38,10 +38,37 @@
   </div>
 
   <main class="app-main">
-    <!-- Dropzone unique : 2 fichiers (vidéo/image + audio) -->
+    <nav class="app-workflow" aria-label="Étapes de création">
+      <ol class="app-workflow-track">
+        <li class="app-workflow-item">
+          <button type="button" class="app-workflow-btn is-current" data-wf-step="1" id="wf-step-btn-1">
+            <span class="app-workflow-num" aria-hidden="true">1</span>
+            <span class="app-workflow-label">Médias</span>
+          </button>
+        </li>
+        <li class="app-workflow-item app-workflow-connector" aria-hidden="true"></li>
+        <li class="app-workflow-item">
+          <button type="button" class="app-workflow-btn" data-wf-step="2" id="wf-step-btn-2">
+            <span class="app-workflow-num" aria-hidden="true">2</span>
+            <span class="app-workflow-label">Paroles</span>
+          </button>
+        </li>
+        <li class="app-workflow-item app-workflow-connector" aria-hidden="true"></li>
+        <li class="app-workflow-item">
+          <button type="button" class="app-workflow-btn" data-wf-step="3" id="wf-step-btn-3">
+            <span class="app-workflow-num" aria-hidden="true">3</span>
+            <span class="app-workflow-label">Montage</span>
+          </button>
+        </li>
+      </ol>
+      <p class="app-workflow-hint" id="workflow-step-hint">Étape 1 — Ajoute ton fond visuel et ton audio.</p>
+    </nav>
+
+    <!-- Étape 1 : médias -->
+    <div class="app-step-panel" data-step="1" id="panel-step-1">
     <section class="app-card app-card-drop">
-      <h2 class="app-card-title">Fichiers</h2>
-      <p class="app-card-sub">Vidéo ou image + fichier audio</p>
+      <h2 class="app-card-title">Étape 1 — Médias</h2>
+      <p class="app-card-sub">Dépose une <strong>vidéo ou une image</strong> de fond, et un fichier <strong>audio</strong> (morceau).</p>
       <div class="app-dropzone" id="dropzone-main">
         <input type="file" id="input-files" accept=".mp3,.wav,.m4a,.ogg,.flac,.jpg,.jpeg,.png,.bmp,.webp,.mp4,.webm,.mov,.avi,.mkv" multiple class="app-dropzone-input">
         <span class="app-dropzone-icon">🎬</span>
@@ -52,10 +79,34 @@
       <p id="upload-status" class="app-feedback"></p>
 
       <div id="excerpt-panel" class="app-excerpt-panel hidden">
-        <h3 class="app-excerpt-title">Choisir un extrait (optionnel)</h3>
-        <p class="app-excerpt-sub">Réduis la charge : ne garde qu’une partie du son pour la détection et le rendu.</p>
+        <h3 class="app-excerpt-title">Passage audio</h3>
+        <p class="app-excerpt-sub">Glisse la zone sur l’onde pour choisir le segment. <strong>Ctrl + molette</strong> pour zoomer. Puis confirme pour découper le fichier sur le serveur.</p>
         <p id="excerpt-duration-info" class="app-excerpt-duration-info">Durée totale : — s</p>
-        <div class="app-excerpt-fields">
+        <div id="timeline-wave-wrap" class="app-timeline-wave-wrap" tabindex="0" aria-label="Timeline audio">
+          <canvas id="waveform-canvas" width="800" height="88" aria-hidden="true"></canvas>
+        </div>
+        <p id="timeline-fallback" class="app-timeline-fallback hidden">Forme d’onde indisponible — règle le début et la durée avec les champs ci-dessous.</p>
+        <div class="app-timeline-toolbar">
+          <label class="app-timeline-zoom-label">
+            <span class="app-timeline-zoom-text">Zoom</span>
+            <input type="range" id="timeline-zoom" class="app-timeline-zoom" min="100" max="500" step="10" value="100" aria-valuemin="1" aria-valuemax="5">
+          </label>
+          <span id="timeline-zoom-val" class="app-timeline-zoom-val">1.0×</span>
+          <div class="app-timeline-position">
+            <span class="app-timeline-position-label">Position</span>
+            <button type="button" class="app-timeline-step" id="timeline-pos-minus" aria-label="Reculer de 0,5 s">−</button>
+            <span id="timeline-pos-readout" class="app-timeline-readout">0:00.0</span>
+            <button type="button" class="app-timeline-step" id="timeline-pos-plus" aria-label="Avancer de 0,5 s">+</button>
+          </div>
+        </div>
+        <div class="app-chip-row" role="group" aria-label="Durée cible">
+          <span class="app-chip-row-label">Durée</span>
+          <button type="button" class="app-chip-dur" data-dur="15">15 s</button>
+          <button type="button" class="app-chip-dur" data-dur="20">20 s</button>
+          <button type="button" class="app-chip-dur" data-dur="25">25 s</button>
+          <button type="button" class="app-chip-dur" data-dur="30">30 s</button>
+        </div>
+        <div class="app-excerpt-fields app-excerpt-fields--compact">
           <label class="app-excerpt-field">
             <span class="app-excerpt-label">Début (s)</span>
             <input type="number" id="excerpt-start" min="0" step="0.5" value="0" class="app-excerpt-input">
@@ -64,45 +115,75 @@
             <span class="app-excerpt-label">Durée (s)</span>
             <input type="number" id="excerpt-duration" min="1" step="0.5" value="30" class="app-excerpt-input">
           </label>
-          <button type="button" id="btn-apply-excerpt" class="app-btn app-btn-secondary">Appliquer l’extrait</button>
+          <button type="button" id="btn-apply-excerpt" class="app-btn app-btn-cyan">Confirmer la sélection</button>
         </div>
         <p id="excerpt-status" class="app-feedback"></p>
       </div>
+      <div class="app-step-nav">
+        <span class="app-step-nav-spacer"></span>
+        <button type="button" class="app-btn app-btn-primary" id="btn-wf-go-2">Continuer : détecter les paroles →</button>
+      </div>
     </section>
+    </div>
 
-    <!-- Détection -->
+    <!-- Étape 2 : détection -->
+    <div class="app-step-panel" data-step="2" id="panel-step-2" hidden>
     <section class="app-card app-card-detect">
+      <h2 class="app-card-title">Étape 2 — Paroles sur l’audio</h2>
+      <p class="app-card-sub">Choisis le moteur (AudioShake, AssemblyAI, Whisper…), puis lance la détection. Tu pourras éditer le texte à l’étape suivante.</p>
       <div class="app-detect-row">
         <button type="button" id="btn-detect-lyrics" class="app-btn app-btn-primary">Détecter les paroles</button>
         <label class="app-select-wrap">
-          <span class="app-label">Modèle</span>
+          <span class="app-label">Moteur</span>
           <select id="select-engine"></select>
         </label>
       </div>
       <p id="sync-status" class="app-feedback"></p>
+      <div class="app-step-nav">
+        <button type="button" class="app-btn app-btn-secondary" id="btn-wf-back-1">← Retour aux médias</button>
+      </div>
+    </section>
+    </div>
+
+    <!-- Étape 3 : montage (placeholder puis contenu réel après synchro) -->
+    <div class="app-step-panel" data-step="3" id="panel-step-3" hidden>
+    <section class="app-card app-card-placeholder" id="step-montage-placeholder">
+      <h2 class="app-card-title">Étape 3 — Montage</h2>
+      <p class="app-card-sub">Dès que les paroles sont détectées, tu verras ici l’aperçu, le style du texte et l’export vidéo.</p>
+      <p class="app-placeholder-actions">
+        <button type="button" class="app-btn app-btn-primary" id="btn-wf-from-placeholder-2">Retour à l’étape 2 pour détecter</button>
+      </p>
     </section>
 
-    <!-- Rendu : paroles (gauche) + prévisualisation (droite) -->
     <section class="app-card app-card-render hidden" id="card-render">
-      <h2 class="app-card-title">Rendu</h2>
-      <div class="app-render-grid">
-        <div class="app-lyrics-col">
-          <h3 class="app-lyrics-title">Paroles <span class="app-lyrics-hint">(1 phrase par ligne, modifiable)</span></h3>
-          <div id="lyrics-phrases" class="app-lyrics-phrases"></div>
-        </div>
-        <div class="app-preview-col">
-          <div id="preview-area" class="app-preview-area">
-            <div class="app-preview-stage" id="preview-stage" data-ratio="16:9">
-              <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
-              <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
-              <div class="beat-overlay"></div>
-              <div id="preview-overlay" class="preview-overlay preview-pos-center"></div>
-            </div>
-            <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : il s’aimante au centre en relâchant.</p>
-            <audio id="preview-audio" controls class="app-preview-audio"></audio>
+      <h2 class="app-card-title">Étape 3 — Montage et export</h2>
+      <p class="app-card-sub">Vérifie les phrases, prévisualise sur le fond, règle le style puis exporte ton MP4.</p>
+
+      <div class="app-render-subsection">
+        <h3 class="app-substep-title"><span class="app-substep-badge">A</span> Texte et aperçu</h3>
+        <div class="app-render-grid">
+          <div class="app-lyrics-col">
+            <h3 class="app-lyrics-title">Paroles <span class="app-lyrics-hint">(1 phrase par ligne, modifiable)</span></h3>
+            <div id="lyrics-phrases" class="app-lyrics-phrases"></div>
           </div>
-          <div class="app-style-section">
-            <h3 class="app-style-section-title">Style du texte</h3>
+          <div class="app-preview-col">
+            <div id="preview-area" class="app-preview-area">
+              <div class="app-preview-stage" id="preview-stage" data-ratio="16:9">
+                <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
+                <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
+                <div class="beat-overlay"></div>
+                <div id="preview-overlay" class="preview-overlay preview-pos-center"></div>
+              </div>
+              <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : il s’aimante au centre en relâchant.</p>
+              <audio id="preview-audio" controls class="app-preview-audio"></audio>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-style-section app-render-subsection">
+            <h3 class="app-substep-title"><span class="app-substep-badge">B</span> Style du texte à l’écran</h3>
+            <h3 class="app-style-section-title">Apparence</h3>
             <div class="app-style-block app-style-block-row">
               <div class="app-style-item">
                 <span class="app-options-title">Effet</span>
@@ -115,7 +196,9 @@
               </div>
               <div class="app-style-item">
                 <span class="app-options-title">Police</span>
-                <select id="select-font" class="app-font-select" title="Polices disponibles"></select>
+                <p class="app-font-carousel-hint">Polices triées de A à Z — fais défiler, clique une pastille (même rendu à l’export).</p>
+                <div class="app-font-carousel" id="font-carousel" aria-label="Polices"></div>
+                <select id="select-font" class="app-font-select app-font-select-below" title="Polices (liste complète)"></select>
               </div>
               <div class="app-style-item">
                 <span class="app-options-title">Couleur</span>
@@ -144,8 +227,6 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
       </div>
 
       <input type="hidden" id="select-position" value="center">
@@ -153,6 +234,8 @@
       <input type="hidden" id="select-resolution" value="720p">
       <input type="hidden" id="select-beat-effect" value="none">
 
+      <div class="app-export-block app-render-subsection">
+        <h3 class="app-substep-title"><span class="app-substep-badge">C</span> Export</h3>
       <div class="app-export-row">
         <button type="button" id="btn-export" class="app-btn app-btn-primary app-btn-export">Exporter la vidéo</button>
         <p id="render-status" class="app-feedback"></p>
@@ -160,8 +243,40 @@
       <div id="post-export" class="app-post-export hidden">
         <a id="link-download" href="#" download class="app-btn app-btn-download">Télécharger le MP4</a>
       </div>
+      </div>
+
+      <div class="app-step-nav app-step-nav-footer">
+        <button type="button" class="app-btn app-btn-secondary" id="btn-wf-back-2-from-3">← Retour aux paroles (étape 2)</button>
+      </div>
     </section>
+    </div>
   </main>
+
+  <div id="sync-progress-overlay" class="app-sync-overlay hidden" aria-hidden="true">
+    <div class="app-sync-card" role="dialog" aria-labelledby="sync-progress-title" aria-live="polite">
+      <div class="app-sync-head">
+        <span class="app-sync-icon" aria-hidden="true">✨</span>
+        <div>
+          <div id="sync-progress-title" class="app-sync-title">Synchronisation des paroles</div>
+          <div class="app-sync-meta" id="sync-progress-meta">Transcription et calage temporel…</div>
+        </div>
+      </div>
+      <div class="app-sync-bars" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <p class="app-sync-statusline" id="sync-progress-statusline">Analyse en cours…</p>
+      <div class="app-sync-row">
+        <span class="app-sync-label">Progression</span>
+        <span class="app-sync-pct" id="sync-progress-pct">0%</span>
+      </div>
+      <div class="app-sync-bar-wrap">
+        <div class="app-sync-bar-fill" id="sync-progress-fill"></div>
+      </div>
+      <p class="app-sync-detail" id="sync-progress-detail">Connexion au moteur…</p>
+      <p class="app-sync-hint">Selon le moteur et la durée : quelques secondes à quelques minutes. Ne ferme pas l’onglet.</p>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

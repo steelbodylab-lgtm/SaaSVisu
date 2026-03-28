@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .font_bundle import ass_filter_segment, merge_font_lists
+
 # Résolutions (width, height) pour 16:9, 9:16, 1:1
 RESOLUTIONS = {
     "720p": {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)},
@@ -16,11 +18,8 @@ RESOLUTIONS = {
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
 
-# Effets "texture réelle" : texte masqué avec une image PNG exportée depuis Photoshop.
-# Déposez les fichiers dans saasvisu/textures/<nom>/.
-TEXTURE_EFFECT_FILES = {
-    "halftone_real": Path("saasvisu") / "textures" / "halftone" / "halftone_texture.png",
-}
+# Effets texture PNG intégrés (clé -> chemin relatif à la racine du dépôt). Vide par défaut.
+TEXTURE_EFFECT_FILES: dict[str, Path] = {}
 
 
 def _discover_external_texture_effect_files() -> dict[str, Path]:
@@ -84,7 +83,6 @@ EFFECT_LABELS: dict[str, str] = {
     "italique": "Italique",
     "neon": "Néon",
     "elegant": "Élégant",
-    "halftone_real": "Halftone (texture PNG)",
 }
 
 
@@ -100,41 +98,24 @@ def get_effect_labels() -> dict[str, str]:
         labels[key] = label.replace("_", " ").strip().title()
     return labels
 
-# Polices existantes + premium / atypiques (installer les polices pour les utiliser)
-FONTS = [
-    # ——— Existantes ———
-    "Arial", "Arial Black", "Georgia", "Impact", "Times New Roman", "Verdana",
-    "Comic Sans MS", "Courier New", "Trebuchet MS", "Palatino Linotype",
-    "Lucida Sans Unicode", "Tahoma", "Franklin Gothic Medium", "Segoe UI", "Consolas",
-    "Segoe UI Semibold", "Segoe UI Light", "Calibri", "Cambria", "Candara",
-    "Constantia", "Corbel", "Ebrima", "Gadugi", "Malgun Gothic",
-    "Microsoft Sans Serif", "Mongolian Baiti", "PMingLiU", "SimSun", "Sylfaen",
-    "Century Gothic", "Lucida Console", "Lucida Sans", "Book Antiqua",
-    "Bookman Old Style", "Garamond", "MS Gothic", "MS PGothic", "MS UI Gothic",
-    "Niagara Engraved", "Niagara Solid", "OCR A Extended", "Tempus Sans ITC",
-    "Viner Hand ITC", "Bauhaus 93", "Bernard MT Condensed", "Bodoni MT",
-    "Britannic Bold", "Broadway", "Brush Script MT", "Castellar", "Century Schoolbook",
-    "Colonna MT", "Cooper Black", "Footlight MT Light", "Haettenschweiler",
-    "HoloLens MDL2 Assets", "Informal Roman", "Javanese Text", "Juice ITC",
-    "Magneto", "Matura MT Script Capitals", "Mistral", "Modern No. 20",
-    "Monotype Corsiva", "OCR B MT", "Old English Text MT", "Onyx", "Parchment",
-    "Playbill", "Poor Richard", "Ravie", "Stencil", "Vivaldi", "Vladimir Script",
-    # ——— Premium / atypiques (qualité supérieure) ———
-    "Helvetica Neue", "Helvetica Neue Condensed Bold", "Futura", "Futura Condensed",
-    "Gill Sans", "Gill Sans MT", "Univers", "Univers Condensed",
-    "Akzidenz-Grotesk", "DIN Next", "DIN Condensed", "Gotham", "Gotham Bold",
-    "Proxima Nova", "Avenir Next", "Avenir Next Condensed",
-    "FF Meta", "FF Meta Condensed", "Neue Haas Grotesk", "Neue Haas Unica",
-    "Graphik", "National", "Clarendon", "Rockwell", "Rockwell Condensed",
-    "Trade Gothic", "News Gothic", "Franklin Gothic", "Alternate Gothic",
-    "Baskerville", "Caslon", "Didot", "Bodoni", "Minion Pro", "Myriad Pro",
-    "Chalet", "Chalet London", "House Gothic", "Blur", "Rosewood",
-    "Lithos Pro", "Trajan Pro", "Charlemagne", "Papyrus", "Optima",
-    "Serifa", "Melior", "Syntax", "Antique Olive", "Microgramma",
-    "Eurostile", "Bank Gothic",
+# Polices système (installées sur la machine) + polices bundle (saasvisu/fonts/, voir font_bundle).
+SYSTEM_FONTS = [
+    "Arial",
+    "Arial Black",
+    "Impact",
+    "Times New Roman",
+    "Comic Sans MS",
+    "Franklin Gothic Medium",
+    "Consolas",
+    "Segoe UI Light",
+    "Gill Sans MT",
+    "Vivaldi",
+    "Papyrus",
+    "Rockwell Condensed",
 ]
+FONTS = merge_font_lists(SYSTEM_FONTS)
 
-# Effets texte : liste réduite (outline/shadow/bold/italic) + texture halftone PNG.
+# Effets texte : outline, shadow, bold, italic (ASS).
 EFFECTS = {
     "minimal": {"outline": 0, "shadow": 0, "bold": 0, "italic": 0},
     "classique": {"outline": 2, "shadow": 1, "bold": 0, "italic": 0},
@@ -146,7 +127,6 @@ EFFECTS = {
     "italique": {"outline": 2, "shadow": 1, "bold": 0, "italic": 1},
     "neon": {"outline": 1, "shadow": 3, "bold": 0, "italic": 0},
     "elegant": {"outline": 1, "shadow": 2, "bold": 0, "italic": 1},
-    "halftone_real": {"outline": 0, "shadow": 0, "bold": 1, "italic": 0},
 }
 
 
@@ -697,10 +677,6 @@ def render_lyric_video(
         outline_hex = "#" + outline_hex
     effect_key = (text_effect or "classique").strip() or "classique"
     effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
-    # Effet "exact" : on force une base typographique proche du PSD pour stabiliser le rendu.
-    if effect_key == "halftone_real":
-        font = "Arial Black"
-        size = max(34, int(size))
     texture_effect_rel = TEXTURE_EFFECT_FILES.get(effect_key)
     texture_effect_path = None
     if texture_effect_rel is not None:
@@ -755,9 +731,9 @@ def render_lyric_video(
                 beat_ass_path.write_text(beat_ass_content, encoding="utf-8")
 
     scale_crop_filter = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}:(iw-ow)/2:(ih-oh)/2"
-    ass_filter = f"ass='{ass_filter_name}'"
+    ass_filter = ass_filter_segment(ass_filter_name)
     if beat_ass_path:
-        ass_filter += f",ass='{beat_ass_path.name}'"
+        ass_filter += "," + ass_filter_segment(beat_ass_path.name)
 
     # Mode texture réelle : on crée un masque texte (ASS blanc sur fond noir), puis
     # on remplit le texte avec la texture PNG exportée depuis Photoshop.
@@ -821,14 +797,14 @@ def render_lyric_video(
         filter_complex = (
             f"{bg_filter}"
             f"color=c=black:s={w}x{h}:d={duration}[maskbase];"
-            f"[maskbase]ass='{mask_name}'[masktxt];"
+            f"[maskbase]{ass_filter_segment(mask_name)}[masktxt];"
             f"[masktxt]format=gray[maskg];"
             f"[2:v]scale={w}:{h},format=rgba[tex];"
             f"[tex][maskg]alphamerge[texttex];"
             f"[bg][texttex]overlay=0:0:format=auto[withtext];"
         )
         if beat_ass_path:
-            filter_complex += f"[withtext]ass='{beat_ass_path.name}'[vout]"
+            filter_complex += f"[withtext]{ass_filter_segment(beat_ass_path.name)}[vout]"
             out_map = ["-map", "[vout]"]
         else:
             out_map = ["-map", "[withtext]"]

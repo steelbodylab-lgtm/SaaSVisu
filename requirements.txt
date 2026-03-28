@@ -1,6 +1,7 @@
 # Saas Visu — dépendances Python
 # Core
 pydub>=0.25.1
+fonttools>=4.50.0
 python-dotenv>=1.0.0
 # API web
 fastapi>=0.109.0
