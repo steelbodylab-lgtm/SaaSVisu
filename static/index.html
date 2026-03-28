@@ -159,14 +159,14 @@
       <h2 class="app-card-title">Étape 3 — Montage et export</h2>
       <p class="app-card-sub">Vérifie les phrases, prévisualise sur le fond, règle le style puis exporte ton MP4.</p>
 
-      <div class="app-render-subsection">
+      <div class="app-render-subsection app-render-subsection-a">
         <h3 class="app-substep-title"><span class="app-substep-badge">A</span> Texte et aperçu</h3>
-        <div class="app-render-grid">
-          <div class="app-lyrics-col">
-            <h3 class="app-lyrics-title">Paroles <span class="app-lyrics-hint">(1 phrase par ligne, modifiable)</span></h3>
+        <div class="app-render-grid app-render-grid-workbench">
+          <div class="app-lyrics-col app-lyrics-col-scroll">
+            <h3 class="app-lyrics-title">Paroles <span class="app-lyrics-hint">(1 phrase par ligne)</span></h3>
             <div id="lyrics-phrases" class="app-lyrics-phrases"></div>
           </div>
-          <div class="app-preview-col">
+          <div class="app-preview-col app-preview-col-main">
             <div id="preview-area" class="app-preview-area">
               <div class="app-preview-stage" id="preview-stage" data-ratio="16:9">
                 <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
@@ -181,52 +181,78 @@
         </div>
       </div>
 
-      <div class="app-style-section app-render-subsection">
-            <h3 class="app-substep-title"><span class="app-substep-badge">B</span> Style du texte à l’écran</h3>
-            <h3 class="app-style-section-title">Apparence</h3>
-            <div class="app-style-block app-style-block-row">
-              <div class="app-style-item">
-                <span class="app-options-title">Effet</span>
-                <div class="app-effect-pills">
-                  <button type="button" class="app-pill app-pill-effect active" data-effect="neon">Néon</button>
-                  <button type="button" class="app-pill app-pill-effect" data-effect="elegant">Fantaisie</button>
-                  <button type="button" class="app-pill app-pill-effect" data-effect="classique">Classique</button>
+      <div class="app-style-section app-render-subsection app-style-studio-section">
+        <h3 class="app-substep-title"><span class="app-substep-badge">B</span> Style du texte à l’écran</h3>
+        <div class="app-style-studio" role="region" aria-label="Réglages d’apparence du texte">
+          <nav class="app-style-rail" aria-label="Sections">
+            <button type="button" class="app-style-rail-btn is-active" data-style-panel="fonts" title="Polices">
+              <span class="app-style-rail-icon" aria-hidden="true">A</span>
+              <span class="app-style-rail-label">Polices</span>
+            </button>
+            <button type="button" class="app-style-rail-btn" data-style-panel="effects" title="Effets">
+              <span class="app-style-rail-icon" aria-hidden="true">✦</span>
+              <span class="app-style-rail-label">Effets</span>
+            </button>
+            <button type="button" class="app-style-rail-btn" data-style-panel="color" title="Couleur et taille">
+              <span class="app-style-rail-icon" aria-hidden="true">◎</span>
+              <span class="app-style-rail-label">Couleur</span>
+            </button>
+            <button type="button" class="app-style-rail-btn" data-style-panel="layout" title="Disposition">
+              <span class="app-style-rail-icon" aria-hidden="true">▤</span>
+              <span class="app-style-rail-label">Disposition</span>
+            </button>
+          </nav>
+          <div class="app-style-panels">
+            <div id="style-panel-fonts" class="app-style-panel is-active">
+              <p class="app-tile-strip-hint">Défile horizontalement — chaque carré montre la police.</p>
+              <div class="app-tile-strip-outer">
+                <div class="app-tile-strip app-tile-strip-fonts" id="font-carousel" aria-label="Polices"></div>
+              </div>
+              <select id="select-font" class="app-sr-only" title="Polices (liste)"></select>
+            </div>
+            <div id="style-panel-effects" class="app-style-panel" hidden>
+              <p class="app-tile-strip-hint">Aperçu stylisé dans chaque vignette — même rendu qu’à l’export.</p>
+              <div class="app-tile-strip-outer">
+                <div class="app-tile-strip app-tile-strip-effects" id="effect-carousel" aria-label="Effets"></div>
+              </div>
+              <select id="select-effect" class="app-sr-only" title="Effets"></select>
+            </div>
+            <div id="style-panel-color" class="app-style-panel" hidden>
+              <div class="app-style-panel-inner">
+                <div class="app-style-item">
+                  <span class="app-options-title">Couleur du texte</span>
+                  <input type="color" id="input-text-color" value="#FFFFFF" class="app-color-input">
                 </div>
-                <select id="select-effect" class="app-effect-select" title="Tous les effets"></select>
-              </div>
-              <div class="app-style-item">
-                <span class="app-options-title">Police</span>
-                <p class="app-font-carousel-hint">Polices triées de A à Z — fais défiler, clique une pastille (même rendu à l’export).</p>
-                <div class="app-font-carousel" id="font-carousel" aria-label="Polices"></div>
-                <select id="select-font" class="app-font-select app-font-select-below" title="Polices (liste complète)"></select>
-              </div>
-              <div class="app-style-item">
-                <span class="app-options-title">Couleur</span>
-                <input type="color" id="input-text-color" value="#FFFFFF" class="app-color-input">
-              </div>
-              <div class="app-style-item">
-                <span class="app-options-title">Défilement</span>
-                <select id="select-display">
-                  <option value="mot">Mot par mot</option>
-                  <option value="ligne">Phrase par phrase</option>
-                </select>
-              </div>
-              <div class="app-style-item app-style-item-size">
-                <span class="app-options-title">Taille</span>
-                <div class="app-size-row">
-                  <input type="range" id="input-font-size" min="24" max="96" value="48" class="app-range">
-                  <span id="font-size-val" class="app-range-val">48</span>
+                <div class="app-style-item app-style-item-size">
+                  <span class="app-options-title">Taille</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-font-size" min="24" max="96" value="48" class="app-range app-range-wide">
+                    <span id="font-size-val" class="app-range-val">48</span>
+                  </div>
                 </div>
-              </div>
-              <div class="app-style-item">
-                <span class="app-options-title">Position</span>
-                <div class="app-position-pills">
-                  <button type="button" class="app-pill app-pill-pos" data-pos="top">Haut</button>
-                  <button type="button" class="app-pill app-pill-pos active" data-pos="center">Centre</button>
-                  <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
+                <div class="app-style-item">
+                  <span class="app-options-title">Défilement</span>
+                  <select id="select-display" class="app-style-panel-select">
+                    <option value="mot">Mot par mot</option>
+                    <option value="ligne">Phrase par phrase</option>
+                  </select>
                 </div>
               </div>
             </div>
+            <div id="style-panel-layout" class="app-style-panel" hidden>
+              <div class="app-style-panel-inner">
+                <div class="app-style-item">
+                  <span class="app-options-title">Position sur l’image</span>
+                  <div class="app-position-pills">
+                    <button type="button" class="app-pill app-pill-pos" data-pos="top">Haut</button>
+                    <button type="button" class="app-pill app-pill-pos active" data-pos="center">Centre</button>
+                    <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <input type="hidden" id="select-position" value="center">

@@ -4,8 +4,7 @@
   var currentSegments = null;
   var currentPhrases = [];
   var displayMode = "mot";
-  var PHRASE_GAP_MS = 138;
-  var PHRASE_MAX_WORDS = 10;
+  var lastPhraseScrollIdx = -1;
   var currentBeats = [];
   var beatEffect = "none";
   var lastBeatIdx = -1;
@@ -51,20 +50,62 @@
     document.querySelectorAll("#lyrics-phrases .app-phrase-line").forEach(resizePhraseLine);
   }
 
+  function _segmentWordCount(seg) {
+    var t = (seg && seg.text ? seg.text : "").trim();
+    if (!t) return 0;
+    return t.split(/\s+/).filter(Boolean).length;
+  }
+  function _endsSentencePunctuation(text) {
+    var t = (text || "").replace(/\s+$/, "");
+    if (!t) return false;
+    return /[.!?…][\s"'»”’)\]]*$/u.test(t) || /[.!?…]$/.test(t);
+  }
+  function _endsClausePause(text) {
+    var t = (text || "").replace(/\s+$/, "");
+    if (!t) return false;
+    return /[,;:…][\s"'»”’)\]]*$/u.test(t) || /[,;:]$/.test(t);
+  }
+  /**
+   * Regroupe les segments (1 segment = 1 mot côté synchro) en lignes « phrase » pour l’affichage.
+   * Ne modifie pas les timestamps : l’export reste aligné mot à mot via getSegmentsFromBoxesFromPhraseLines.
+   */
   function groupIntoPhrases(segments) {
     if (!segments || !segments.length) return [];
+    var STRONG_GAP_MS = 480;
+    var WEAK_GAP_MS = 320;
+    var TIGHT_GAP_MS = 120;
+    var MAX_WORDS_PER_PHRASE = 22;
+    var MIN_WORDS_WEAK_BREAK = 8;
     var phrases = [];
     var cur = [{ seg: segments[0], idx: 0 }];
+    var curWordCount = _segmentWordCount(segments[0]);
     for (var i = 1; i < segments.length; i++) {
-      var prevEnd = segments[i - 1].end_time_ms || 0;
-      var currStart = segments[i].start_time_ms || 0;
-      var gapNewPhrase = currStart - prevEnd >= PHRASE_GAP_MS;
-      var capReached = cur.length >= PHRASE_MAX_WORDS;
-      if (gapNewPhrase || capReached) {
+      var prev = segments[i - 1];
+      var curr = segments[i];
+      var prevEnd = prev.end_time_ms || 0;
+      var currStart = curr.start_time_ms || 0;
+      var gap = currStart - prevEnd;
+      var prevText = (prev.text || "").trim();
+      var nextWords = _segmentWordCount(curr);
+      var startNew = false;
+      if (_endsSentencePunctuation(prevText)) {
+        startNew = true;
+      } else if (gap < TIGHT_GAP_MS) {
+        startNew = false;
+      } else if (gap >= STRONG_GAP_MS) {
+        startNew = true;
+      } else if (curWordCount + nextWords > MAX_WORDS_PER_PHRASE) {
+        startNew = true;
+      } else if (gap >= WEAK_GAP_MS && curWordCount >= MIN_WORDS_WEAK_BREAK) {
+        if (_endsClausePause(prevText) || curWordCount >= 14) startNew = true;
+      }
+      if (startNew) {
         phrases.push(cur);
-        cur = [{ seg: segments[i], idx: i }];
+        cur = [{ seg: curr, idx: i }];
+        curWordCount = nextWords;
       } else {
-        cur.push({ seg: segments[i], idx: i });
+        cur.push({ seg: curr, idx: i });
+        curWordCount += nextWords;
       }
     }
     if (cur.length) phrases.push(cur);
@@ -1151,18 +1192,53 @@
     list.forEach(function (f) {
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "app-font-pill";
+      btn.className = "app-font-tile";
       btn.setAttribute("data-font", f);
-      btn.textContent = f;
-      btn.style.fontFamily = f + ", sans-serif";
+      var prev = document.createElement("span");
+      prev.className = "app-font-tile-preview";
+      prev.textContent = "Aa";
+      prev.style.fontFamily = '"' + f.replace(/"/g, "") + '", sans-serif';
+      var lab = document.createElement("span");
+      lab.className = "app-font-tile-name";
+      lab.textContent = f.length > 18 ? f.slice(0, 16) + "…" : f;
+      btn.appendChild(prev);
+      btn.appendChild(lab);
+      wrap.appendChild(btn);
+    });
+  }
+  function rebuildEffectCarousel(effects) {
+    var wrap = document.getElementById("effect-carousel");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    if (!effects || !effects.length) return;
+    effects.forEach(function (eff) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "app-effect-tile";
+      btn.setAttribute("data-effect", eff);
+      var prev = document.createElement("span");
+      prev.className = "app-effect-tile-preview";
+      prev.textContent = "Lyric";
+      var lab = document.createElement("span");
+      lab.className = "app-effect-tile-label";
+      lab.textContent = effectLabels[eff] || eff;
+      btn.appendChild(prev);
+      btn.appendChild(lab);
       wrap.appendChild(btn);
     });
   }
   function syncFontCarouselFromSelect() {
     var fs = document.getElementById("select-font");
     var v = fs && fs.value;
-    document.querySelectorAll("#font-carousel .app-font-pill").forEach(function (p) {
+    document.querySelectorAll("#font-carousel .app-font-tile").forEach(function (p) {
       p.classList.toggle("active", (p.getAttribute("data-font") || "") === v);
+    });
+  }
+  function syncEffectTilesFromSelect() {
+    var es = document.getElementById("select-effect");
+    var val = es && es.value ? es.value : "neon";
+    document.querySelectorAll("#effect-carousel .app-effect-tile").forEach(function (p) {
+      p.classList.toggle("active", (p.getAttribute("data-effect") || "") === val);
     });
   }
   function initFontCarousel() {
@@ -1170,13 +1246,44 @@
     if (!wrap || wrap.dataset.boundCarousel) return;
     wrap.dataset.boundCarousel = "1";
     wrap.addEventListener("click", function (e) {
-      var pill = e.target.closest(".app-font-pill");
-      if (!pill) return;
-      var name = pill.getAttribute("data-font");
+      var tile = e.target.closest(".app-font-tile");
+      if (!tile) return;
+      var name = tile.getAttribute("data-font");
       var fs = document.getElementById("select-font");
       if (fs && name) fs.value = name;
       syncFontCarouselFromSelect();
       updatePreviewOverlay();
+    });
+  }
+  function initEffectCarousel() {
+    var wrap = document.getElementById("effect-carousel");
+    if (!wrap || wrap.dataset.boundEffect) return;
+    wrap.dataset.boundEffect = "1";
+    wrap.addEventListener("click", function (e) {
+      var tile = e.target.closest(".app-effect-tile");
+      if (!tile) return;
+      var eff = tile.getAttribute("data-effect");
+      var sel = document.getElementById("select-effect");
+      if (sel && eff) sel.value = eff;
+      syncEffectTilesFromSelect();
+      updatePreviewOverlay();
+    });
+  }
+  function initStyleStudioRail() {
+    var rail = document.querySelector(".app-style-rail");
+    if (!rail || rail.dataset.boundRail) return;
+    rail.dataset.boundRail = "1";
+    rail.addEventListener("click", function (e) {
+      var btn = e.target.closest(".app-style-rail-btn");
+      if (!btn) return;
+      var id = btn.getAttribute("data-style-panel");
+      if (!id) return;
+      rail.querySelectorAll(".app-style-rail-btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      document.querySelectorAll(".app-style-panel").forEach(function (p) {
+        var show = p.id === "style-panel-" + id;
+        p.hidden = !show;
+        p.classList.toggle("is-active", show);
+      });
     });
   }
   function fillDefaultOptions() {
@@ -1184,6 +1291,12 @@
     var es = document.getElementById("select-effect");
     if (fs && !fs.options.length) APP_FONTS.forEach(function (f) { fs.appendChild(new Option(f, f)); });
     if (es && es.tagName === "SELECT" && !es.options.length) [{ v:"classique",l:"Classique" },{ v:"outline",l:"Contour" },{ v:"gras_epais",l:"Gras épais" },{ v:"minimal",l:"Minimal" },{ v:"neon",l:"Néon" }].forEach(function (o) { es.appendChild(new Option(o.l, o.v)); });
+    if (document.getElementById("effect-carousel") && es && es.options.length) {
+      var effs = [];
+      for (var j = 0; j < es.options.length; j++) effs.push(es.options[j].value);
+      rebuildEffectCarousel(effs);
+      syncEffectTilesFromSelect();
+    }
   }
   function loadRenderOptions() {
     fetch(API + "/config/options").then(function (r) { return r.json(); }).then(function (data) {
@@ -1222,30 +1335,17 @@
         } else if (es.options.length) {
           es.selectedIndex = 0;
         }
-        syncEffectPillsFromSelect();
+        rebuildEffectCarousel(allowed);
+        syncEffectTilesFromSelect();
       }
       fillDefaultOptions();
     }).catch(fillDefaultOptions);
   }
-  function syncEffectPillsFromSelect() {
-    var es = document.getElementById("select-effect");
-    var val = es && es.value ? es.value : "neon";
-    document.querySelectorAll(".app-pill-effect").forEach(function (p) { p.classList.toggle("active", (p.dataset.effect || "") === val); });
-  }
   function initNewUIPills() {
     var es = document.getElementById("select-effect");
     if (es && es.tagName === "SELECT") {
-      es.addEventListener("change", function () { syncEffectPillsFromSelect(); updatePreviewOverlay(); });
+      es.addEventListener("change", function () { syncEffectTilesFromSelect(); updatePreviewOverlay(); });
     }
-    document.querySelectorAll(".app-pill-effect").forEach(function (pill) {
-      pill.addEventListener("click", function () {
-        document.querySelectorAll(".app-pill-effect").forEach(function (p) { p.classList.remove("active"); });
-        pill.classList.add("active");
-        var sel = document.getElementById("select-effect");
-        if (sel) sel.value = pill.dataset.effect || "neon";
-        updatePreviewOverlay();
-      });
-    });
     var selDisplay = document.getElementById("select-display");
     if (selDisplay) {
       displayMode = selDisplay.value || "mot";
@@ -1452,7 +1552,17 @@
       var loc = idx >= 0 ? _findPhraseForIdx(idx) : null;
       if (loc !== null) {
         var pl = document.querySelector('#lyrics-phrases .app-phrase-line[data-phrase-idx="' + loc.phraseIdx + '"]');
-        if (pl) pl.classList.add("current-phrase");
+        if (pl) {
+          pl.classList.add("current-phrase");
+          if (loc.phraseIdx !== lastPhraseScrollIdx) {
+            lastPhraseScrollIdx = loc.phraseIdx;
+            requestAnimationFrame(function () {
+              pl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+            });
+          }
+        }
+      } else if (idx < 0) {
+        lastPhraseScrollIdx = -1;
       }
     }
     if (idx >= 0 && !isAppNewUI()) {
@@ -1831,6 +1941,7 @@
         se.value = se.querySelector('option[value="neon"]') ? "neon" : (se.options[0] && se.options[0].value) || "classique";
       }
     }
+    syncEffectTilesFromSelect();
     setVal("input-font-size", p.font_size);
     var sv = document.getElementById("font-size-val"); if (sv) sv.textContent = p.font_size || 48;
     setVal("input-text-color", p.text_color);
@@ -1964,6 +2075,8 @@
       setupSingleDropzone();
       initTimelineUI();
       initFontCarousel();
+      initEffectCarousel();
+      initStyleStudioRail();
       loadRenderOptions();
       initNewUIPills();
       window.addEventListener("resize", function () { resizeAllPhraseLines(); });
@@ -2044,6 +2157,7 @@
         if (data.segments && data.segments.length) {
           currentSegments = data.segments;
           currentPhrases = groupIntoPhrases(currentSegments);
+          lastPhraseScrollIdx = -1;
           if (isAppNewUI()) {
             var container = document.getElementById("lyrics-phrases");
             var cardRender = document.getElementById("card-render");

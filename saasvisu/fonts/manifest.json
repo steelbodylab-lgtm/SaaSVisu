@@ -20,10 +20,6 @@
     "file": "starbim.otf"
   },
   {
-    "family": "Super Mario 256",
-    "file": "super_mario_256.ttf"
-  },
-  {
     "family": "Super Meatball",
     "file": "super_meatball.ttf"
   },
@@ -62,14 +58,6 @@
   {
     "family": "Cracked Bold",
     "file": "cracked_bold.ttf"
-  },
-  {
-    "family": "Halo",
-    "file": "halo.ttf"
-  },
-  {
-    "family": "Halo Outline",
-    "file": "halo_outline.ttf"
   },
   {
     "family": "Hypik",
