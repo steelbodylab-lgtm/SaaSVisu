@@ -10,6 +10,7 @@
   var lastBeatIdx = -1;
   var excerptInfo = { start: 0, duration: 20 };
   var syncProgressInterval = null;
+  var syncProgressStartMs = 0;
   var tlPeaks = null;
   var tlDuration = 0;
   var tlZoom = 1;
@@ -20,6 +21,7 @@
   var tlCanvasW = 800;
   var tlCanvasH = 88;
   var tlUiInited = false;
+  var THEME_KEY = "saasvisu_theme";
 
   var phraseLineMirror = null;
   function getPhraseLineMirror() {
@@ -71,11 +73,11 @@
    */
   function groupIntoPhrases(segments) {
     if (!segments || !segments.length) return [];
-    var STRONG_GAP_MS = 480;
-    var WEAK_GAP_MS = 320;
-    var TIGHT_GAP_MS = 120;
-    var MAX_WORDS_PER_PHRASE = 22;
-    var MIN_WORDS_WEAK_BREAK = 8;
+    var STRONG_GAP_MS = 380;
+    var WEAK_GAP_MS = 230;
+    var TIGHT_GAP_MS = 100;
+    var MAX_WORDS_PER_PHRASE = 12;
+    var MIN_WORDS_WEAK_BREAK = 5;
     var phrases = [];
     var cur = [{ seg: segments[0], idx: 0 }];
     var curWordCount = _segmentWordCount(segments[0]);
@@ -97,7 +99,9 @@
       } else if (curWordCount + nextWords > MAX_WORDS_PER_PHRASE) {
         startNew = true;
       } else if (gap >= WEAK_GAP_MS && curWordCount >= MIN_WORDS_WEAK_BREAK) {
-        if (_endsClausePause(prevText) || curWordCount >= 14) startNew = true;
+        if (_endsClausePause(prevText) || curWordCount >= 9) startNew = true;
+      } else if (_endsClausePause(prevText) && curWordCount >= 7) {
+        startNew = true;
       }
       if (startNew) {
         phrases.push(cur);
@@ -659,11 +663,24 @@
     var pct = document.getElementById("sync-progress-pct");
     var detail = document.getElementById("sync-progress-detail");
     var statusline = document.getElementById("sync-progress-statusline");
+    var inlineWrap = document.getElementById("sync-inline-progress");
+    var inlineFill = document.getElementById("sync-inline-fill");
+    var inlinePct = document.getElementById("sync-inline-pct");
+    var inlineDetail = document.getElementById("sync-inline-detail");
+    var inlineEta = document.getElementById("sync-inline-eta");
     var v = 2;
+    syncProgressStartMs = Date.now();
     if (fill) fill.style.width = "0%";
     if (pct) pct.textContent = "0%";
     if (detail) detail.textContent = "Connexion au moteur…";
     if (statusline) statusline.textContent = "Transcription et calage en cours…";
+    if (inlineWrap) inlineWrap.classList.remove("hidden");
+    if (inlineFill) inlineFill.style.width = "0%";
+    if (inlinePct) inlinePct.textContent = "0%";
+    if (inlineDetail) inlineDetail.textContent = "Connexion au moteur…";
+    if (inlineEta) inlineEta.textContent = "~ estimation…";
+    updateSyncStepChips(1);
+    updateSyncChecklist("transcribe");
     if (syncProgressInterval) clearInterval(syncProgressInterval);
     syncProgressInterval = setInterval(function () {
       if (v < 88) {
@@ -671,10 +688,22 @@
         if (v > 88) v = 88;
         if (fill) fill.style.width = v + "%";
         if (pct) pct.textContent = Math.round(v) + "%";
+        if (inlineFill) inlineFill.style.width = v + "%";
+        if (inlinePct) inlinePct.textContent = Math.round(v) + "%";
+        updateSyncStepChips(v < 40 ? 1 : (v < 78 ? 2 : 3));
+        updateSyncChecklist(v < 40 ? "transcribe" : (v < 78 ? "align" : "ready"));
+        var etaEl = document.getElementById("sync-inline-eta");
+        if (etaEl) {
+          var elapsed = Math.max(1, Math.floor((Date.now() - syncProgressStartMs) / 1000));
+          var remaining = Math.max(2, Math.round((100 - v) * (elapsed / Math.max(1, v))));
+          etaEl.textContent = "~ " + remaining + "s restantes";
+        }
       }
-      if (detail && Math.random() > 0.65) {
+      if (Math.random() > 0.65) {
         var msgs = ["Analyse du signal audio…", "Détection de la parole…", "Alignement des mots…", "Finalisation…"];
-        detail.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+        var msg = msgs[Math.floor(Math.random() * msgs.length)];
+        if (detail) detail.textContent = msg;
+        if (inlineDetail) inlineDetail.textContent = msg;
       }
     }, 400);
   }
@@ -688,10 +717,21 @@
     var fill = document.getElementById("sync-progress-fill");
     var pct = document.getElementById("sync-progress-pct");
     var detail = document.getElementById("sync-progress-detail");
+    var inlineWrap = document.getElementById("sync-inline-progress");
+    var inlineFill = document.getElementById("sync-inline-fill");
+    var inlinePct = document.getElementById("sync-inline-pct");
+    var inlineDetail = document.getElementById("sync-inline-detail");
+    var inlineEta = document.getElementById("sync-inline-eta");
     if (success) {
       if (fill) fill.style.width = "100%";
       if (pct) pct.textContent = "100%";
       if (detail) detail.textContent = "Terminé.";
+      if (inlineFill) inlineFill.style.width = "100%";
+      if (inlinePct) inlinePct.textContent = "100%";
+      if (inlineDetail) inlineDetail.textContent = "Terminé.";
+      if (inlineEta) inlineEta.textContent = "Prêt";
+      updateSyncStepChips(4);
+      updateSyncChecklist("ready");
     }
     var delay = success ? 450 : 0;
     setTimeout(function () {
@@ -699,7 +739,40 @@
       document.body.classList.remove("app-sync-open");
       if (fill) fill.style.width = "0%";
       if (pct) pct.textContent = "0%";
+      if (inlineFill) inlineFill.style.width = "0%";
+      if (inlinePct) inlinePct.textContent = "0%";
+      if (inlineEta) inlineEta.textContent = "~ estimation…";
+      if (inlineWrap) inlineWrap.classList.add("hidden");
+      updateSyncStepChips(0);
+      updateSyncChecklist("upload");
     }, delay);
+  }
+  function updateSyncStepChips(activeStep) {
+    var wrap = document.getElementById("sync-inline-steps");
+    if (!wrap) return;
+    wrap.querySelectorAll(".app-sync-step").forEach(function (el) {
+      var n = parseInt(el.getAttribute("data-step"), 10) || 0;
+      el.classList.toggle("is-active", activeStep > 0 && activeStep < 4 && n === activeStep);
+      el.classList.toggle("is-done", activeStep === 4 ? true : (activeStep > 0 && n < activeStep));
+    });
+  }
+  function updateSyncChecklist(state) {
+    var keys = ["upload", "transcribe", "align", "ready"];
+    var idx = keys.indexOf(state);
+    document.querySelectorAll("#sync-checklist .app-sync-check-item").forEach(function (el) {
+      var k = el.getAttribute("data-check");
+      var i = keys.indexOf(k);
+      el.classList.toggle("is-active", i === idx && state !== "ready");
+      el.classList.toggle("is-done", i >= 0 && (state === "ready" ? true : i < idx));
+    });
+  }
+  function setDetectButtonLoading(isLoading) {
+    var btn = document.getElementById("btn-detect-lyrics");
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.textContent || "Détecter les paroles";
+    btn.classList.toggle("is-loading", !!isLoading);
+    btn.disabled = !!isLoading;
+    btn.textContent = isLoading ? "Synchronisation en cours…" : btn.dataset.label;
   }
 
   function computeAudioPeaks(audioBuffer, count) {
@@ -1057,6 +1130,7 @@
             uploadedAudioName = name;
             updateDropzoneDisplay();
             setStatus("upload-status", "Audio enregistré.");
+            updateSyncChecklist("upload");
             if (d.duration_seconds > 0) showExcerptPanel(d.duration_seconds);
           } else setStatus("upload-status", d.detail || "Erreur audio", true);
         } catch (e) { setStatus("upload-status", e.message, true); }
@@ -1103,7 +1177,7 @@
       var form = new FormData(); form.append("file", file);
       var r = await fetch(API + "/projects/" + id + "/audio", { method: "POST", body: form });
       var data = {}; try { data = JSON.parse(await r.text()); } catch (_) {}
-      if (r.ok) { setStatus("upload-status", "Audio enregistré."); showExcerptPanel(data.duration_seconds); }
+      if (r.ok) { setStatus("upload-status", "Audio enregistré."); updateSyncChecklist("upload"); showExcerptPanel(data.duration_seconds); }
       else setStatus("upload-status", data.detail || "Erreur " + r.status, true);
     } catch (e) { setStatus("upload-status", e.message, true); }
   }
@@ -1660,6 +1734,7 @@
   }
 
   var previewAnimId = null;
+  var previewBgSyncInterval = null;
   function previewLoop() {
     updatePreviewOverlay();
     var audio = document.getElementById("preview-audio");
@@ -1689,18 +1764,71 @@
     audio.src = API + "/projects/" + projectId + "/audio";
 
     initAudioContext(audio);
+    function syncBgVideoToAudio(forceSeek) {
+      if (!bgVideo || !bgVideo.classList.contains("active")) return;
+      var aT = audio.currentTime || 0;
+      var vT = bgVideo.currentTime || 0;
+      var dur = bgVideo.duration || 0;
+      var target = aT;
+      if (dur && isFinite(dur) && dur > 0.25) {
+        // Si le fond est plus court que l'audio, on boucle proprement sur sa durée.
+        target = aT % dur;
+      }
+      var drift = target - vT;
+      try {
+        if (forceSeek || Math.abs(drift) > 0.35) {
+          bgVideo.currentTime = Math.max(0, target);
+          bgVideo.playbackRate = 1.0;
+        } else if (Math.abs(drift) > 0.06) {
+          // Correction douce pour éviter les saccades visibles sur long visionnage.
+          var corr = 1 + Math.max(-0.06, Math.min(0.06, drift * 0.55));
+          bgVideo.playbackRate = corr;
+        } else {
+          bgVideo.playbackRate = 1.0;
+        }
+      } catch (_) {}
+      if (!audio.paused && !audio.ended) {
+        // Certains navigateurs mettent la vidéo de fond en pause sporadiquement.
+        if (bgVideo.paused) {
+          try { bgVideo.currentTime = Math.max(0, target); } catch (_) {}
+        }
+        var p = bgVideo.play();
+        if (p && typeof p.catch === "function") p.catch(function () {});
+      } else {
+        try { bgVideo.pause(); } catch (_) {}
+        bgVideo.playbackRate = 1.0;
+      }
+    }
+    function startBgPeriodicResync() {
+      if (previewBgSyncInterval != null) clearInterval(previewBgSyncInterval);
+      previewBgSyncInterval = setInterval(function () {
+        if (!audio || audio.paused || audio.ended) return;
+        syncBgVideoToAudio(false);
+      }, 500);
+    }
+    function stopBgPeriodicResync() {
+      if (previewBgSyncInterval != null) {
+        clearInterval(previewBgSyncInterval);
+        previewBgSyncInterval = null;
+      }
+    }
 
     audio.onseeked = function () {
+      syncBgVideoToAudio(true);
       updatePreviewOverlay();
       if (previewAnimId == null && !audio.paused) previewAnimId = requestAnimationFrame(previewLoop);
     };
     audio.onplay = function () {
       if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
       startAudioReactive();
+      syncBgVideoToAudio(true);
+      startBgPeriodicResync();
       if (previewAnimId != null) cancelAnimationFrame(previewAnimId);
       previewAnimId = requestAnimationFrame(previewLoop);
     };
     audio.onpause = audio.onended = function () {
+      syncBgVideoToAudio(false);
+      stopBgPeriodicResync();
       if (previewAnimId != null) { cancelAnimationFrame(previewAnimId); previewAnimId = null; }
       stopAudioReactive();
       updatePreviewOverlay();
@@ -1715,8 +1843,12 @@
         if (info.background_type === "video") {
           bgVideo.src = url; bgVideo.classList.add("active"); bgImg.classList.remove("active");
           bgVideo.addEventListener("loadeddata", function () { extractDominantColorFromVideo(bgVideo); }, { once: true });
+          bgVideo.addEventListener("loadedmetadata", function () { syncBgVideoToAudio(true); }, { once: true });
+          bgVideo.addEventListener("canplay", function () { syncBgVideoToAudio(false); }, { once: true });
         } else {
           bgImg.src = url; bgImg.classList.add("active"); bgVideo.classList.remove("active");
+          stopBgPeriodicResync();
+          try { bgVideo.pause(); } catch (_) {}
           bgImg.addEventListener("load", function () { extractDominantColor(bgImg); }, { once: true });
         }
       }
@@ -1789,6 +1921,29 @@
     if (badge) badge.addEventListener("click", function () {
       var modal = document.getElementById("credits-modal");
       if (modal) modal.classList.toggle("hidden");
+    });
+  }
+  function applyTheme(theme) {
+    var t = (theme === "light") ? "light" : "dark";
+    document.body.setAttribute("data-theme", t);
+    var btn = document.getElementById("theme-toggle");
+    if (btn) btn.textContent = (t === "light") ? "🌞 Clair" : "🌙 Nuit";
+  }
+  function initThemeToggle() {
+    var stored = "";
+    try { stored = localStorage.getItem(THEME_KEY) || ""; } catch (_) {}
+    if (!stored) {
+      var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+      stored = prefersLight ? "light" : "dark";
+    }
+    applyTheme(stored);
+    var btn = document.getElementById("theme-toggle");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var cur = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
+      var next = cur === "light" ? "dark" : "light";
+      applyTheme(next);
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
     });
   }
 
@@ -2061,6 +2216,7 @@
 
   /* ======== INIT ======== */
   document.addEventListener("DOMContentLoaded", function () {
+    initThemeToggle();
     initWorkflowNav();
     if (!isAppNewUI()) {
       initParticles();
@@ -2079,6 +2235,7 @@
       initStyleStudioRail();
       loadRenderOptions();
       initNewUIPills();
+      updateSyncChecklist("upload");
       window.addEventListener("resize", function () { resizeAllPhraseLines(); });
     }
     initOverlayDrag();
@@ -2120,6 +2277,7 @@
     var btnDetect = document.getElementById("btn-detect-lyrics");
     if (btnDetect) btnDetect.addEventListener("click", async function () {
       var ok = false;
+      setDetectButtonLoading(true);
       showSyncProgressOverlay();
       try {
         var id = await ensureProject();
@@ -2200,12 +2358,13 @@
           "whisper": "Whisper (local)"
         };
         var lbl = engineLabels[data.engine] || data.engine;
-        setStatus("sync-status", data.words_count + " mots détectés — " + lbl + " ✓");
+        setStatus("sync-status", data.words_count + " mots — " + currentPhrases.length + " lignes — " + lbl + " ✓");
         ok = true;
       } catch (e) {
         setStatus("sync-status", e.message, true);
       } finally {
         hideSyncProgressOverlay(ok);
+        setDetectButtonLoading(false);
       }
     });
 

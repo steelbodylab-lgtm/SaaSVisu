@@ -7,10 +7,18 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="app-body">
+  <div class="app-bg-aurora" aria-hidden="true">
+    <span class="app-bg-blob app-bg-blob-a"></span>
+    <span class="app-bg-blob app-bg-blob-b"></span>
+    <span class="app-bg-blob app-bg-blob-c"></span>
+  </div>
   <header class="app-header">
     <span class="app-logo">SaaS Visu</span>
     <div class="app-header-center" title="Rappel coûts API">Les moteurs cloud (AudioShake, AssemblyAI…) facturent à l’usage — limite la durée avec l’extrait ci-dessous.</div>
-    <span class="credits-badge" id="credits-badge" title="Crédits">—</span>
+    <div class="app-header-right">
+      <button type="button" class="theme-toggle" id="theme-toggle" title="Basculer clair / nuit" aria-label="Basculer le thème">🌙 Nuit</button>
+      <span class="credits-badge" id="credits-badge" title="Crédits">—</span>
+    </div>
   </header>
 
   <div class="modal-overlay hidden" id="credits-modal">
@@ -38,6 +46,51 @@
   </div>
 
   <main class="app-main">
+    <section class="app-lp-hero" id="landing">
+      <p class="app-lp-kicker">SaaSVisu — Lyric Video Studio</p>
+      <h1 class="app-lp-title">Crée des lyric videos premium qui donnent envie de rester jusqu’au bout.</h1>
+      <p class="app-lp-lead">Un workflow clair en 3 étapes : sélection du meilleur passage audio, synchronisation automatique des paroles, montage visuel et export MP4 prêt à poster.</p>
+      <div class="app-lp-cta-row">
+        <a class="app-btn app-btn-cyan" href="#panel-step-1">Lancer mon premier clip</a>
+        <a class="app-btn app-btn-secondary" href="#panel-step-2">Voir la synchronisation</a>
+      </div>
+      <div class="app-lp-proof-row">
+        <span>Workflow guidé 1→2→3</span>
+        <span>Aperçu temps réel</span>
+        <span>Montage orienté réseaux</span>
+        <span>Export MP4</span>
+      </div>
+    </section>
+
+    <section class="app-lp-grid app-lp-grid-4">
+      <article class="app-lp-card">
+        <h3>Acquisition</h3>
+        <p>Convertis un son brut en contenu court impactant pour TikTok, Reels et Shorts.</p>
+      </article>
+      <article class="app-lp-card">
+        <h3>Vitesse</h3>
+        <p>Timeline audio + détection paroles automatique pour aller de l’idée au rendu rapidement.</p>
+      </article>
+      <article class="app-lp-card">
+        <h3>Contrôle</h3>
+        <p>Ajuste typo, effet, position et rythme de lecture avec retour immédiat en preview.</p>
+      </article>
+      <article class="app-lp-card">
+        <h3>Qualité</h3>
+        <p>Même esprit visuel entre preview et export final pour éviter les mauvaises surprises.</p>
+      </article>
+    </section>
+
+    <section class="app-lp-how app-lp-how-pro">
+      <h2>Comment ça marche</h2>
+      <ol>
+        <li><strong>1. Médias</strong> — importe l’audio + ton fond, puis sélectionne le passage le plus fort.</li>
+        <li><strong>2. Paroles</strong> — lance la synchro auto, suis la progression et vérifie les lignes détectées.</li>
+        <li><strong>3. Montage</strong> — style ton texte, prévisualise en contexte, exporte ton MP4 prêt à publier.</li>
+      </ol>
+      <a class="app-btn app-btn-cyan app-lp-bottom-cta" href="#panel-step-1">Commencer maintenant</a>
+    </section>
+
     <nav class="app-workflow" aria-label="Étapes de création">
       <ol class="app-workflow-track">
         <li class="app-workflow-item">
@@ -139,6 +192,31 @@
         </label>
       </div>
       <p id="sync-status" class="app-feedback"></p>
+      <div id="sync-inline-progress" class="app-sync-inline hidden" aria-live="polite">
+        <div class="app-sync-inline-head">
+          <span class="app-sync-inline-title">Synchronisation des paroles</span>
+          <span class="app-sync-inline-eta" id="sync-inline-eta">~ estimation…</span>
+        </div>
+        <div class="app-sync-inline-steps" id="sync-inline-steps">
+          <span class="app-sync-step is-active" data-step="1">Analyse</span>
+          <span class="app-sync-step" data-step="2">Alignement</span>
+          <span class="app-sync-step" data-step="3">Finalisation</span>
+        </div>
+        <div class="app-sync-row">
+          <span class="app-sync-label">Progression</span>
+          <span class="app-sync-pct" id="sync-inline-pct">0%</span>
+        </div>
+        <div class="app-sync-bar-wrap app-sync-bar-wrap-inline">
+          <div class="app-sync-bar-fill app-sync-bar-fill-shimmer" id="sync-inline-fill"></div>
+        </div>
+        <p class="app-sync-detail" id="sync-inline-detail">Connexion au moteur…</p>
+      </div>
+      <div class="app-sync-checklist" id="sync-checklist">
+        <div class="app-sync-check-item" data-check="upload"><span class="dot"></span>Audio prêt</div>
+        <div class="app-sync-check-item" data-check="transcribe"><span class="dot"></span>Transcription</div>
+        <div class="app-sync-check-item" data-check="align"><span class="dot"></span>Alignement</div>
+        <div class="app-sync-check-item" data-check="ready"><span class="dot"></span>Prêt pour le montage</div>
+      </div>
       <div class="app-step-nav">
         <button type="button" class="app-btn app-btn-secondary" id="btn-wf-back-1">← Retour aux médias</button>
       </div>
