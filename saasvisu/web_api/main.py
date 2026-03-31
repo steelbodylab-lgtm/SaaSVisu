@@ -18,6 +18,8 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 import uuid
 import shutil
+from urllib.parse import urlparse
+from urllib.request import Request as UrlRequest, urlopen
 
 app = FastAPI(title="Saas Visu API", version="0.1.0")
 
@@ -66,6 +68,10 @@ class PresetBody(BaseModel):
     ratio: str = "16:9"
     resolution: str = "720p"
     beat_effect: str = "none"
+
+
+class ImportUrlBody(BaseModel):
+    url: str
 
 
 @app.get("/")
@@ -270,6 +276,71 @@ async def upload_background(project_id: str, file: UploadFile = File(...)):
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
     return {"ok": True, "path": str(dest)}
+
+
+@app.post("/projects/{project_id}/import-url")
+def import_from_url(project_id: str, body: ImportUrlBody):
+    """Importe un média depuis une URL directe (audio, image ou vidéo) dans le projet."""
+    project_path = PROJECTS_DIR / project_id
+    if not project_path.exists() or not (project_path / "projet.json").exists():
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    url = (body.url or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL invalide (http/https requis).")
+    max_bytes = 150 * 1024 * 1024
+    try:
+        req = UrlRequest(url, headers={"User-Agent": "SaaSVisu/1.0"})
+        with urlopen(req, timeout=25) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            path_ext = (Path(urlparse(url).path).suffix or "").lower()
+            ext = path_ext
+            if not ext:
+                if "audio/" in ctype:
+                    ext = ".mp3"
+                elif "video/" in ctype:
+                    ext = ".mp4"
+                elif "image/jpeg" in ctype:
+                    ext = ".jpg"
+                elif "image/png" in ctype:
+                    ext = ".png"
+                elif "image/webp" in ctype:
+                    ext = ".webp"
+            chunks = []
+            size = 0
+            while True:
+                chunk = resp.read(1024 * 64)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_bytes:
+                    raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 150 Mo).")
+                chunks.append(chunk)
+            data = b"".join(chunks)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Impossible de récupérer le média: {e}")
+
+    audio_ext = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
+    if ext in audio_ext or "audio/" in ctype:
+        if ext not in audio_ext:
+            ext = ".mp3"
+        dest = project_path / "audio" / f"track{ext}"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        duration_seconds = None
+        try:
+            from saasvisu.audio_ingest import get_duration_seconds
+            duration_seconds = get_duration_seconds(dest)
+        except Exception:
+            pass
+        return {"ok": True, "kind": "audio", "path": str(dest), "duration_seconds": duration_seconds}
+
+    if ext not in BACKGROUND_EXT:
+        raise HTTPException(status_code=400, detail=f"Format non supporté: {ext or 'inconnu'}")
+    dest = project_path / f"background{ext}"
+    dest.write_bytes(data)
+    return {"ok": True, "kind": "background", "path": str(dest)}
 
 
 @app.post("/projects/{project_id}/lyrics")
@@ -563,6 +634,17 @@ def run_render(
     font_size: int = 0,
     effect: str = "",
     text_color: str = "",
+    outline_color: str = "",
+    outline_size: int = 0,
+    shadow_size: int = 0,
+    shadow_color: str = "",
+    neon_color: str = "",
+    neon_intensity: int = 100,
+    brightness: int = 100,
+    contrast: int = 100,
+    saturation: int = 100,
+    sharpness: int = 0,
+    vignette: int = 0,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -598,6 +680,17 @@ def run_render(
             font_size=font_size or None,
             text_effect=(effect and effect.strip()) or "classique",
             text_color=text_color or None,
+            outline_color=outline_color or None,
+            outline_size=outline_size,
+            shadow_size=shadow_size,
+            shadow_color=shadow_color or None,
+            neon_color=neon_color or None,
+            neon_intensity=neon_intensity,
+            brightness=brightness,
+            contrast=contrast,
+            saturation=saturation,
+            sharpness=sharpness,
+            vignette=vignette,
             position=(position and position.strip()) or "bottom",
             pos_x_pct=pos_x_pct,
             pos_y_pct=pos_y_pct,

@@ -129,6 +129,13 @@
         <span class="app-dropzone-sub">ou clique pour choisir — 1 ou 2 fichiers (audio + vidéo/image)</span>
         <span class="app-dropzone-files" id="dropzone-filenames"></span>
       </div>
+      <div class="app-url-import">
+        <label class="app-url-label" for="input-media-url">Importer depuis un lien direct (audio/image/vidéo)</label>
+        <div class="app-url-row">
+          <input type="url" id="input-media-url" class="app-url-input" placeholder="https://...fichier.mp4 / .mp3 / .jpg">
+          <button type="button" id="btn-import-url" class="app-btn app-btn-secondary">Importer le lien</button>
+        </div>
+      </div>
       <p id="upload-status" class="app-feedback"></p>
 
       <div id="excerpt-panel" class="app-excerpt-panel hidden">
@@ -250,9 +257,10 @@
                 <img id="preview-bg-img" class="preview-bg" alt="" crossorigin="anonymous">
                 <video id="preview-bg-video" class="preview-bg" muted loop playsinline crossorigin="anonymous"></video>
                 <div class="beat-overlay"></div>
+                <div class="preview-grid hidden" id="preview-grid" aria-hidden="true"></div>
                 <div id="preview-overlay" class="preview-overlay preview-pos-center"></div>
               </div>
-              <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : il s’aimante au centre en relâchant.</p>
+              <p class="app-magnet-hint" id="magnet-hint">Déplace le texte : grille de placement active en drag. Double-clic sur le texte pour éditer la phrase active. Molette sur la vignette = taille.</p>
               <audio id="preview-audio" controls class="app-preview-audio"></audio>
             </div>
           </div>
@@ -294,6 +302,37 @@
                 <div class="app-tile-strip app-tile-strip-effects" id="effect-carousel" aria-label="Effets"></div>
               </div>
               <select id="select-effect" class="app-sr-only" title="Effets"></select>
+              <div class="app-style-panel-inner app-effect-advanced">
+                <div class="app-style-item">
+                  <span class="app-options-title">Couleur du néon</span>
+                  <input type="color" id="input-neon-color" value="#00E5FF" class="app-color-input">
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Intensité néon</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-neon-intensity" min="20" max="220" value="100" class="app-range app-range-wide">
+                    <span id="neon-intensity-val" class="app-range-val">100</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Couleur ombre</span>
+                  <input type="color" id="input-shadow-color" value="#000000" class="app-color-input">
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Taille ombre</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-shadow-size" min="0" max="10" value="3" class="app-range app-range-wide">
+                    <span id="shadow-size-val" class="app-range-val">3</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Taille contour</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-outline-size" min="0" max="12" value="1" class="app-range app-range-wide">
+                    <span id="outline-size-val" class="app-range-val">1</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div id="style-panel-color" class="app-style-panel" hidden>
               <div class="app-style-panel-inner">
@@ -315,10 +354,69 @@
                     <option value="ligne">Phrase par phrase</option>
                   </select>
                 </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Luminosité</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-brightness" min="50" max="180" value="100" class="app-range app-range-wide">
+                    <span id="brightness-val" class="app-range-val">100</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Contraste</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-contrast" min="50" max="180" value="100" class="app-range app-range-wide">
+                    <span id="contrast-val" class="app-range-val">100</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Saturation</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-saturation" min="0" max="200" value="100" class="app-range app-range-wide">
+                    <span id="saturation-val" class="app-range-val">100</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Netteté</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-sharpness" min="0" max="200" value="0" class="app-range app-range-wide">
+                    <span id="sharpness-val" class="app-range-val">0</span>
+                  </div>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Vignette</span>
+                  <div class="app-size-row">
+                    <input type="range" id="input-vignette" min="0" max="100" value="0" class="app-range app-range-wide">
+                    <span id="vignette-val" class="app-range-val">0</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div id="style-panel-layout" class="app-style-panel" hidden>
               <div class="app-style-panel-inner">
+                <div class="app-style-item">
+                  <span class="app-options-title">Format</span>
+                  <select id="select-format-preset" class="app-style-panel-select">
+                    <option value="youtube">YouTube (16:9)</option>
+                    <option value="tiktok">TikTok (9:16)</option>
+                    <option value="gopro">GoPro (16:9 action)</option>
+                  </select>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Ratio</span>
+                  <select id="select-ratio" class="app-style-panel-select">
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                  </select>
+                </div>
+                <div class="app-style-item">
+                  <span class="app-options-title">Résolution</span>
+                  <select id="select-resolution" class="app-style-panel-select">
+                    <option value="720p">720p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="4k">4K</option>
+                  </select>
+                </div>
                 <div class="app-style-item">
                   <span class="app-options-title">Position sur l’image</span>
                   <div class="app-position-pills">
@@ -327,6 +425,7 @@
                     <button type="button" class="app-pill app-pill-pos" data-pos="bottom">Bas</button>
                   </div>
                 </div>
+                <button type="button" id="btn-preview-fullscreen" class="app-btn app-btn-secondary">Plein écran preview</button>
               </div>
             </div>
           </div>
@@ -334,8 +433,6 @@
       </div>
 
       <input type="hidden" id="select-position" value="center">
-      <input type="hidden" id="select-ratio" value="16:9">
-      <input type="hidden" id="select-resolution" value="720p">
       <input type="hidden" id="select-beat-effect" value="none">
 
       <div class="app-export-block app-render-subsection">

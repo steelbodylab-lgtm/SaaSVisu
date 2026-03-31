@@ -243,7 +243,8 @@ def _effect_to_ass_style(
     pc = f"&H00{p[4:6]}{p[2:4]}{p[0:2]}"
     oc = outline_hex.lstrip("#")[:6]
     ochex = f"&H00{oc[4:6]}{oc[2:4]}{oc[0:2]}"
-    return f"Style: Default,{font_name},{font_size},{pc},{ochex},&H80000000,{bold},{italic},1,{outline},{shadow},{alignment},10,10,{margin_v},1"
+    # BackColour pilote visuellement l'ombre ASS.
+    return f"Style: Default,{font_name},{font_size},{pc},{ochex},{ochex},{bold},{italic},1,{outline},{shadow},{alignment},10,10,{margin_v},1"
 
 
 def _normalize_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -632,6 +633,16 @@ def render_lyric_video(
     text_effect: str | None = None,
     text_color: str | None = None,
     outline_color: str | None = None,
+    outline_size: int | None = None,
+    shadow_size: int | None = None,
+    shadow_color: str | None = None,
+    neon_color: str | None = None,
+    neon_intensity: int | None = None,
+    brightness: int | None = None,
+    contrast: int | None = None,
+    saturation: int | None = None,
+    sharpness: int | None = None,
+    vignette: int | None = None,
     position: str = "bottom",
     pos_x_pct: float | None = None,
     pos_y_pct: float | None = None,
@@ -672,11 +683,23 @@ def render_lyric_video(
     primary_color = (text_color or text_cfg.get("color") or "#FFFFFF").strip()
     if not primary_color.startswith("#"):
         primary_color = "#" + primary_color
-    outline_hex = (outline_color or "#000000").strip()
+    if (text_effect or "classique").strip() == "neon" and neon_color:
+        primary_color = neon_color if str(neon_color).startswith("#") else ("#" + str(neon_color))
+    outline_src = shadow_color or outline_color or "#000000"
+    outline_hex = str(outline_src).strip()
     if not outline_hex.startswith("#"):
         outline_hex = "#" + outline_hex
     effect_key = (text_effect or "classique").strip() or "classique"
-    effect_dict = EFFECTS.get(effect_key, EFFECTS["classique"])
+    effect_dict = dict(EFFECTS.get(effect_key, EFFECTS["classique"]))
+    if outline_size is not None:
+        effect_dict["outline"] = max(0, int(outline_size))
+    if shadow_size is not None:
+        effect_dict["shadow"] = max(0, int(shadow_size))
+    if effect_key == "neon" and neon_intensity is not None:
+        # Intensité néon: ajuste ombre/outline pour renforcer l'effet.
+        p = max(20, min(220, int(neon_intensity))) / 100.0
+        effect_dict["shadow"] = max(effect_dict.get("shadow", 1), int(round(3 * p)))
+        effect_dict["outline"] = max(effect_dict.get("outline", 1), int(round(1 * p)))
     texture_effect_rel = TEXTURE_EFFECT_FILES.get(effect_key)
     texture_effect_path = None
     if texture_effect_rel is not None:
@@ -730,7 +753,31 @@ def render_lyric_video(
                 beat_ass_path = output_path.parent / (output_path.stem + "_beats.ass")
                 beat_ass_path.write_text(beat_ass_content, encoding="utf-8")
 
+    def _build_media_post_filter() -> str:
+        b = 100 if brightness is None else int(brightness)
+        c = 100 if contrast is None else int(contrast)
+        s = 100 if saturation is None else int(saturation)
+        sh = 0 if sharpness is None else int(sharpness)
+        vg = 0 if vignette is None else int(vignette)
+        filters: list[str] = []
+        if b != 100 or c != 100 or s != 100:
+            bright_ff = max(-1.0, min(1.0, (b - 100) / 100.0))
+            contrast_ff = max(0.2, min(3.0, c / 100.0))
+            sat_ff = max(0.0, min(3.0, s / 100.0))
+            filters.append(f"eq=brightness={bright_ff:.3f}:contrast={contrast_ff:.3f}:saturation={sat_ff:.3f}")
+        if sh > 0:
+            amount = max(0.2, min(3.0, sh / 80.0))
+            filters.append(f"unsharp=5:5:{amount:.2f}")
+        if vg > 0:
+            # 0..100 => 0..1 approx
+            vstr = max(0.05, min(1.0, vg / 100.0))
+            filters.append(f"vignette=PI/{vstr:.3f}")
+        return ",".join(filters)
+
+    media_post_filter = _build_media_post_filter()
     scale_crop_filter = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}:(iw-ow)/2:(ih-oh)/2"
+    if media_post_filter:
+        scale_crop_filter = f"{scale_crop_filter},{media_post_filter}"
     ass_filter = ass_filter_segment(ass_filter_name)
     if beat_ass_path:
         ass_filter += "," + ass_filter_segment(beat_ass_path.name)

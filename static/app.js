@@ -22,6 +22,21 @@
   var tlCanvasH = 88;
   var tlUiInited = false;
   var THEME_KEY = "saasvisu_theme";
+  var activePhraseIdxForPreviewEdit = -1;
+  var effectParams = {
+    neon_color: "#00E5FF",
+    neon_intensity: 100,
+    shadow_color: "#000000",
+    shadow_size: 3,
+    outline_size: 1
+  };
+  var colorParams = {
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    sharpness: 0,
+    vignette: 0
+  };
 
   var phraseLineMirror = null;
   function getPhraseLineMirror() {
@@ -169,8 +184,10 @@
     var bgVid = document.getElementById("preview-bg-video");
     var activeBg = (bgVid && bgVid.classList.contains("active")) ? bgVid : bgImg;
     if (activeBg && activeBg.classList.contains("active")) {
-      var bright = 1 + bassSmooth * 0.15;
-      activeBg.style.filter = "brightness(" + bright.toFixed(3) + ")";
+      var b = ((colorParams.brightness || 100) / 100) * (1 + bassSmooth * 0.15);
+      var c = (colorParams.contrast || 100) / 100;
+      var s = (colorParams.saturation || 100) / 100;
+      activeBg.style.filter = "brightness(" + b.toFixed(3) + ") contrast(" + c.toFixed(3) + ") saturate(" + s.toFixed(3) + ")";
     }
 
     requestAnimationFrame(audioReactiveLoop);
@@ -189,6 +206,7 @@
     var bgVid = document.getElementById("preview-bg-video");
     if (bgImg) bgImg.style.filter = "";
     if (bgVid) bgVid.style.filter = "";
+    applyPreviewMediaFilter();
   }
 
   /* ======== EXTRACTION COULEUR DOMINANTE ======== */
@@ -510,13 +528,17 @@
   function enableDragMode() {
     isDragMode = true;
     var ov = document.getElementById("preview-overlay");
+    var grid = document.getElementById("preview-grid");
     if (ov) { ov.classList.add("preview-pos-drag"); ov.classList.remove("preview-pos-bottom", "preview-pos-center", "preview-pos-top"); }
+    if (grid) grid.classList.add("hidden");
     applyOverlayPosition((document.getElementById("select-position") || {}).value || "center");
   }
   function disableDragMode() {
     isDragMode = false; isDragging = false;
     var ov = document.getElementById("preview-overlay");
+    var grid = document.getElementById("preview-grid");
     if (ov) { ov.classList.remove("preview-pos-drag", "dragging"); ov.style.left = ""; ov.style.top = ""; ov.style.right = ""; ov.style.bottom = ""; ov.style.transform = ""; }
+    if (grid) grid.classList.add("hidden");
   }
   function applyOverlayPosition(pos) {
     var ov = document.getElementById("preview-overlay");
@@ -528,13 +550,15 @@
   function initOverlayDrag() {
     var ov = document.getElementById("preview-overlay");
     var stage = document.getElementById("preview-stage");
+    var grid = document.getElementById("preview-grid");
     if (!ov || !stage) return;
     var SNAP_THRESHOLD = 0.12;
-    function startDrag(ex, ey) { if (!isDragMode) return; isDragging = true; ov.classList.add("dragging"); var r = ov.getBoundingClientRect(); dragOffset.x = ex - r.left; dragOffset.y = ey - r.top; }
-    function moveDrag(ex, ey) { if (!isDragging) return; var sr = stage.getBoundingClientRect(); var x = Math.max(0, Math.min(ex - sr.left - dragOffset.x, sr.width - ov.offsetWidth)); var y = Math.max(0, Math.min(ey - sr.top - dragOffset.y, sr.height - ov.offsetHeight)); ov.style.left = x + "px"; ov.style.top = y + "px"; ov.style.transform = "none"; ov.style.right = "auto"; }
+    function startDrag(ex, ey) { if (!isDragMode) return; isDragging = true; ov.classList.add("dragging"); if (grid) grid.classList.remove("hidden"); var r = ov.getBoundingClientRect(); dragOffset.x = ex - r.left; dragOffset.y = ey - r.top; }
+    function moveDrag(ex, ey) { if (!isDragging) return; var sr = stage.getBoundingClientRect(); var x = Math.max(0, Math.min(ex - sr.left - dragOffset.x, sr.width - ov.offsetWidth)); var y = Math.max(0, Math.min(ey - sr.top - dragOffset.y, sr.height - ov.offsetHeight)); ov.style.left = x + "px"; ov.style.top = y + "px"; ov.style.transform = "none"; ov.style.right = "auto"; var pe = document.getElementById("select-position"); if (pe) pe.value = "drag"; }
     function endDrag() {
       isDragging = false;
       ov.classList.remove("dragging");
+      if (grid) grid.classList.add("hidden");
       if (isDragMode && isAppNewUI()) {
         var sr = stage.getBoundingClientRect();
         var ovr = ov.getBoundingClientRect();
@@ -553,6 +577,32 @@
     ov.addEventListener("touchstart", function (e) { if (e.touches.length === 1) { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
     document.addEventListener("touchmove", function (e) { if (isDragging && e.touches.length === 1) moveDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
     document.addEventListener("touchend", endDrag);
+    ov.addEventListener("dblclick", function () {
+      if (!isAppNewUI()) return;
+      if (activePhraseIdxForPreviewEdit < 0) return;
+      var line = document.querySelector('#lyrics-phrases .app-phrase-line[data-phrase-idx="' + activePhraseIdxForPreviewEdit + '"]');
+      if (!line) return;
+      var next = prompt("Modifier la phrase active :", (line.textContent || "").trim());
+      if (next == null) return;
+      line.textContent = next.trim();
+      updatePreviewOverlay();
+    });
+    stage.addEventListener("wheel", function (e) {
+      if (!isAppNewUI()) return;
+      if (e.ctrlKey) return;
+      var sizeInput = document.getElementById("input-font-size");
+      var sizeVal = document.getElementById("font-size-val");
+      if (!sizeInput) return;
+      e.preventDefault();
+      var cur = parseInt(sizeInput.value || "48", 10);
+      var next = cur + (e.deltaY > 0 ? -1 : 1) * 2;
+      var min = parseInt(sizeInput.min || "24", 10);
+      var max = parseInt(sizeInput.max || "96", 10);
+      next = Math.max(min, Math.min(max, next));
+      sizeInput.value = String(next);
+      if (sizeVal) sizeVal.textContent = String(next);
+      updatePreviewOverlay();
+    }, { passive: false });
   }
 
   /* ======== UTILS ======== */
@@ -562,6 +612,28 @@
     if (!el) return;
     el.textContent = text || "";
     el.className = "feedback" + (text ? (isError ? " err" : " ok") : "");
+  }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function fmtPct(v) { return (Math.round(v * 10) / 10).toFixed(1); }
+  function applyPreviewMediaFilter() {
+    var bgImg = document.getElementById("preview-bg-img");
+    var bgVid = document.getElementById("preview-bg-video");
+    var active = (bgVid && bgVid.classList.contains("active")) ? bgVid : bgImg;
+    if (!active) return;
+    var b = (colorParams.brightness || 100) / 100;
+    var c = (colorParams.contrast || 100) / 100;
+    var s = (colorParams.saturation || 100) / 100;
+    var sharp = (colorParams.sharpness || 0) / 100;
+    var vign = (colorParams.vignette || 0) / 100;
+    var filters = [
+      "brightness(" + b.toFixed(3) + ")",
+      "contrast(" + c.toFixed(3) + ")",
+      "saturate(" + s.toFixed(3) + ")"
+    ];
+    if (sharp > 0) filters.push("contrast(" + (1 + sharp * 0.2).toFixed(3) + ")");
+    active.style.filter = filters.join(" ");
+    var stage = document.getElementById("preview-stage");
+    if (stage) stage.style.boxShadow = vign > 0 ? "inset 0 0 " + Math.round(50 + vign * 140) + "px rgba(0,0,0," + (0.08 + vign * 0.34).toFixed(2) + "), 0 8px 32px rgba(0,0,0,.4)" : "";
   }
   function setProjectBadge(id) {
     projectId = id;
@@ -1455,6 +1527,106 @@
       }
     });
   }
+  function initAdvancedControls() {
+    var bindings = [
+      ["input-neon-intensity", "neon-intensity-val", "neon_intensity"],
+      ["input-shadow-size", "shadow-size-val", "shadow_size"],
+      ["input-outline-size", "outline-size-val", "outline_size"],
+      ["input-brightness", "brightness-val", "brightness"],
+      ["input-contrast", "contrast-val", "contrast"],
+      ["input-saturation", "saturation-val", "saturation"],
+      ["input-sharpness", "sharpness-val", "sharpness"],
+      ["input-vignette", "vignette-val", "vignette"]
+    ];
+    bindings.forEach(function (entry) {
+      var input = document.getElementById(entry[0]);
+      var out = document.getElementById(entry[1]);
+      var key = entry[2];
+      if (!input) return;
+      var apply = function () {
+        var v = parseFloat(input.value || "0");
+        if (out) out.textContent = String(Math.round(v));
+        if (key in effectParams) effectParams[key] = v;
+        if (key in colorParams) colorParams[key] = v;
+        applyPreviewMediaFilter();
+        updatePreviewOverlay();
+      };
+      input.addEventListener("input", apply);
+      apply();
+    });
+    var nc = document.getElementById("input-neon-color");
+    var sc = document.getElementById("input-shadow-color");
+    if (nc) nc.addEventListener("input", function () { effectParams.neon_color = nc.value || "#00E5FF"; updatePreviewOverlay(); });
+    if (sc) sc.addEventListener("input", function () { effectParams.shadow_color = sc.value || "#000000"; updatePreviewOverlay(); });
+
+    var fmt = document.getElementById("select-format-preset");
+    var ratio = document.getElementById("select-ratio");
+    if (fmt && ratio) {
+      fmt.addEventListener("change", function () {
+        if (fmt.value === "tiktok") ratio.value = "9:16";
+        else ratio.value = "16:9";
+        setPreviewStageRatio();
+      });
+    }
+    if (ratio) ratio.addEventListener("change", setPreviewStageRatio);
+    var btnFs = document.getElementById("btn-preview-fullscreen");
+    if (btnFs) btnFs.addEventListener("click", function () {
+      var stage = document.getElementById("preview-stage");
+      if (!stage) return;
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (stage.requestFullscreen) stage.requestFullscreen();
+    });
+    var resSel = document.getElementById("select-resolution");
+    function updateResolutionByPlan() {
+      if (!resSel) return;
+      var c = getCredits();
+      var plan = c && c.plan ? String(c.plan) : "decouverte";
+      var allowed = plan === "studio" ? ["720p", "1080p", "4k"] : (plan === "pro" ? ["720p", "1080p"] : ["720p"]);
+      Array.from(resSel.options).forEach(function (o) { o.disabled = allowed.indexOf(o.value) === -1; });
+      if (allowed.indexOf(resSel.value) === -1) resSel.value = allowed[0];
+    }
+    if (resSel) {
+      resSel.addEventListener("change", function () {
+        var c = getCredits();
+        var plan = c && c.plan ? String(c.plan) : "decouverte";
+        if (resSel.value === "4k" && plan !== "studio") setStatus("render-status", "La 4K est réservée au plan Studio.", true);
+        else if (resSel.value === "1080p" && plan === "decouverte") setStatus("render-status", "Le 1080p est réservé aux plans Pro/Studio.", true);
+      });
+    }
+    updateResolutionByPlan();
+    window.addEventListener("storage", updateResolutionByPlan);
+    document.addEventListener("saasvisu:plan-updated", updateResolutionByPlan);
+  }
+  function initImportFromUrl() {
+    var btn = document.getElementById("btn-import-url");
+    var input = document.getElementById("input-media-url");
+    if (!btn || !input) return;
+    btn.addEventListener("click", async function () {
+      try {
+        var url = (input.value || "").trim();
+        if (!url) { setStatus("upload-status", "Colle un lien de média d'abord.", true); return; }
+        var id = await ensureProject();
+        btn.disabled = true;
+        setStatus("upload-status", "Import du média distant…");
+        var r = await fetch(API + "/projects/" + id + "/import-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: url })
+        });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.detail || "Import impossible");
+        if (d.kind === "audio" && d.duration_seconds > 0) {
+          showExcerptPanel(d.duration_seconds);
+          updateSyncChecklist("upload");
+        }
+        setStatus("upload-status", "Import terminé : " + (d.kind === "audio" ? "audio" : "fond") + " ajouté.");
+      } catch (e) {
+        setStatus("upload-status", e.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
   function loadSpeechConfig() {
     var ctrl = new AbortController();
     var tid = setTimeout(function () { ctrl.abort(); }, 10000);
@@ -1625,6 +1797,7 @@
       document.querySelectorAll("#lyrics-phrases .app-phrase-line").forEach(function (l) { l.classList.remove("current-phrase"); });
       var loc = idx >= 0 ? _findPhraseForIdx(idx) : null;
       if (loc !== null) {
+        activePhraseIdxForPreviewEdit = loc.phraseIdx;
         var pl = document.querySelector('#lyrics-phrases .app-phrase-line[data-phrase-idx="' + loc.phraseIdx + '"]');
         if (pl) {
           pl.classList.add("current-phrase");
@@ -1637,6 +1810,7 @@
         }
       } else if (idx < 0) {
         lastPhraseScrollIdx = -1;
+        activePhraseIdxForPreviewEdit = -1;
       }
     }
     if (idx >= 0 && !isAppNewUI()) {
@@ -1685,6 +1859,17 @@
     ov.style.fontFamily = st.font;
     ov.style.fontSize = st.size + "px";
     ov.style.color = st.color;
+    var neonCol = effectParams.neon_color || st.color || "#00E5FF";
+    var neonPow = clamp((effectParams.neon_intensity || 100) / 100, 0.2, 2.2);
+    var shadowCol = effectParams.shadow_color || "#000000";
+    var shadowSz = clamp(effectParams.shadow_size || 0, 0, 12);
+    var outlineSz = clamp(effectParams.outline_size || 0, 0, 14);
+    if ((st.effect || "") === "neon") {
+      ov.style.textShadow = "0 0 " + Math.round(4 * neonPow) + "px " + neonCol + ", 0 0 " + Math.round(12 * neonPow) + "px " + neonCol + ", 0 0 " + Math.round(24 * neonPow) + "px " + neonCol;
+    } else {
+      ov.style.textShadow = "0 " + Math.round(shadowSz * 0.6) + "px " + Math.max(1, shadowSz * 3) + "px " + shadowCol;
+    }
+    ov.style.webkitTextStroke = outlineSz > 0 ? outlineSz + "px " + shadowCol : "";
 
     var baseCls = "preview-overlay";
     if (!isDragMode) {
@@ -1730,7 +1915,9 @@
       ov.style.webkitBackgroundClip = "";
       ov.style.backgroundClip = "";
       ov.style.webkitTextFillColor = "";
+      ov.style.fontWeight = "";
     }
+    applyPreviewMediaFilter();
   }
 
   var previewAnimId = null;
@@ -1903,6 +2090,7 @@
     saveCredits({ plan: plan, credits_remaining: credits, total_used: 0, history: [] });
     var modal = document.getElementById("credits-modal");
     if (modal) modal.classList.add("hidden");
+    document.dispatchEvent(new CustomEvent("saasvisu:plan-updated"));
   }
 
   function initCredits() {
@@ -2234,6 +2422,8 @@
       initEffectCarousel();
       initStyleStudioRail();
       loadRenderOptions();
+      initAdvancedControls();
+      initImportFromUrl();
       initNewUIPills();
       updateSyncChecklist("upload");
       window.addEventListener("resize", function () { resizeAllPhraseLines(); });
@@ -2383,6 +2573,10 @@
         if (!segments.length) { setStatus("render-status", "Détecte les paroles d'abord.", true); return; }
         var ratio = document.getElementById("select-ratio").value;
         var resolution = document.getElementById("select-resolution").value;
+        var cplan = getCredits();
+        var planName = cplan && cplan.plan ? String(cplan.plan) : "decouverte";
+        if (resolution === "4k" && planName !== "studio") { setStatus("render-status", "La 4K est réservée au plan Studio.", true); return; }
+        if (resolution === "1080p" && planName === "decouverte") { setStatus("render-status", "Le 1080p est réservé aux plans Pro/Studio.", true); return; }
         var fs = document.getElementById("select-font");
         var es = document.getElementById("select-effect");
         var font = (fs && fs.value) || "Arial";
@@ -2397,6 +2591,17 @@
         var fontSize = (se && se.value) ? parseInt(se.value, 10) : 48;
         var params = new URLSearchParams({ template: "minimal_16x9", ratio: ratio, resolution: resolution, font: font, effect: effect, font_size: String(fontSize) });
         if (color) params.set("text_color", color.replace(/^#/, ""));
+        params.set("outline_color", (effectParams.shadow_color || "#000000").replace(/^#/, ""));
+        params.set("outline_size", String(Math.round(effectParams.outline_size || 0)));
+        params.set("shadow_size", String(Math.round(effectParams.shadow_size || 0)));
+        params.set("shadow_color", (effectParams.shadow_color || "#000000").replace(/^#/, ""));
+        params.set("neon_color", (effectParams.neon_color || "#00E5FF").replace(/^#/, ""));
+        params.set("neon_intensity", String(Math.round(effectParams.neon_intensity || 100)));
+        params.set("brightness", String(Math.round(colorParams.brightness || 100)));
+        params.set("contrast", String(Math.round(colorParams.contrast || 100)));
+        params.set("saturation", String(Math.round(colorParams.saturation || 100)));
+        params.set("sharpness", String(Math.round(colorParams.sharpness || 0)));
+        params.set("vignette", String(Math.round(colorParams.vignette || 0)));
         var posEl = document.getElementById("select-position");
         var position = (posEl && posEl.value) || "center";
         params.set("position", position);
